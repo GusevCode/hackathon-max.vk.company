@@ -1,0 +1,8 @@
+# Replace bot.example.com with the real domain after pointing DNS to the VPS.
+# The deploy workflow starts the `https` Compose profile automatically.
+
+max.conspiracy-team.ru {
+  # The echo bot uses Long Polling, while this endpoint exposes health checks
+  # and leaves the HTTPS entry point ready for a future webhook or mini app.
+  reverse_proxy bot:8080
+}

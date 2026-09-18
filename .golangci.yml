@@ -1,0 +1,27 @@
+version: "2"
+
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errcheck
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
