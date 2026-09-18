@@ -20,7 +20,7 @@ func main() {
 	if token == "" {
 		log.Fatal("MAX_BOT_TOKEN is required")
 	}
-
+	// test
 	api, err := maxbot.New(token)
 	if err != nil {
 		log.Fatalf("create MAX client: %v", err)
