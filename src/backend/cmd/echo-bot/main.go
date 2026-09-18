@@ -28,6 +28,17 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	botInfo, err := api.Bots.GetBot(ctx)
+	if err != nil {
+		log.Fatalf("get MAX bot info: %v", err)
+	}
+	log.Printf("MAX bot: name=%q username=%q user_id=%d", botInfo.Name, botInfo.Username, botInfo.UserId)
+	if botInfo.Username != "" {
+		log.Printf("MAX bot link: https://max.ru/%s", botInfo.Username)
+	} else {
+		log.Println("MAX bot has no public username yet")
+	}
+
 	healthServer := &http.Server{
 		Addr:              ":8080",
 		Handler:           health.Handler(),
