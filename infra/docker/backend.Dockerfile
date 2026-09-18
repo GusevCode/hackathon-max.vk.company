@@ -16,6 +16,11 @@ RUN apk add --no-cache ca-certificates wget \
   && adduser -S -G app app
 
 COPY --from=build /out/echo-bot /usr/local/bin/echo-bot
+COPY infra/certs/russian_trusted_root_ca_pem.crt /usr/local/share/ca-certificates/russian_trusted_root_ca.crt
+COPY infra/certs/russian_trusted_sub_ca_pem.crt /usr/local/share/ca-certificates/russian_trusted_sub_ca.crt
+
+RUN update-ca-certificates
+
 EXPOSE 8080
 USER app
 ENTRYPOINT ["/usr/local/bin/echo-bot"]
