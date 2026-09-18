@@ -30,7 +30,8 @@ func main() {
 
 	botInfo, err := api.Bots.GetBot(ctx)
 	if err != nil {
-		log.Fatalf("get MAX bot info: %v", err)
+		log.Printf("get MAX bot info: %v", err)
+		return
 	}
 	log.Printf("MAX bot: name=%q username=%q user_id=%d", botInfo.Name, botInfo.Username, botInfo.UserId)
 	if botInfo.Username != "" {
