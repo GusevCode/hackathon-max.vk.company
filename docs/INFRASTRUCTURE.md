@@ -101,6 +101,19 @@ GitHub Actions: gofmt -> vet -> tests (-race) -> golangci-lint -> Docker build
 - Бэкапить только появившиеся позже данные/БД; на первом этапе БД нет.
 - Для production MAX использовать webhook и доверенный TLS-сертификат.
 
+### TLS-сертификат MAX API
+
+`platform-api2.max.ru` использует цепочку `Russian Trusted CA`, которой нет в
+стандартном Mozilla-наборе сертификатов Alpine. Корневой сертификат добавлен в
+`infra/certs/russian_trusted_root_ca_pem.crt` и устанавливается в runtime-образе
+через `update-ca-certificates`. SHA-256 отпечаток сертификата:
+`D26D2D0231B7C39F92CC738512BA54103519E4405D68B5BD703E9788CA8ECF31`.
+Промежуточный сертификат также добавлен в `infra/certs`; его SHA-1
+отпечаток: `335D43F53451B781535FF3882DF713D3C14F8A01`.
+
+Источник сертификата — официальный портал Госуслуг / `gu-st.ru`. Отключать
+проверку TLS (`InsecureSkipVerify`) нельзя.
+
 ## Что нужно получить от владельца проекта перед первым deploy
 
 - купленное доменное имя (когда решим, что нужен webhook/mini app);
