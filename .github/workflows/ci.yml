@@ -15,16 +15,16 @@ concurrency:
 jobs:
   backend:
     name: Go tests and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: src/backend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: src/backend/go.mod
           cache: true
@@ -41,14 +41,14 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: go-coverage-${{ github.sha }}
           path: src/backend/coverage.out
           if-no-files-found: error
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.1.6
           working-directory: src/backend
@@ -56,11 +56,11 @@ jobs:
 
   docker:
     name: Build Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: backend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build image
         run: docker build --file infra/docker/backend.Dockerfile --tag max-hackathon-bot:${{ github.sha }} .
