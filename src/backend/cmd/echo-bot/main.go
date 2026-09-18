@@ -41,21 +41,22 @@ func main() {
 
 	log.Println("echo bot started (long polling)")
 	for update := range api.GetUpdates(ctx) {
-		switch update := update.(type) {
-		case *schemes.MessageCreatedUpdate:
-			if update.GetText() == "" {
-				continue
-			}
+		messageUpdate, ok := update.(*schemes.MessageCreatedUpdate)
+		if !ok {
+			continue
+		}
+		if messageUpdate.GetText() == "" {
+			continue
+		}
 
-			err := api.Messages.Send(
-				ctx,
-				maxbot.NewMessage().
-					SetChat(update.GetChatID()).
-					SetText(update.GetText()),
-			)
-			if err != nil {
-				log.Printf("send echo: %v", err)
-			}
+		err := api.Messages.Send(
+			ctx,
+			maxbot.NewMessage().
+				SetChat(messageUpdate.GetChatID()).
+				SetText(messageUpdate.GetText()),
+		)
+		if err != nil {
+			log.Printf("send echo: %v", err)
 		}
 	}
 
