@@ -1,0 +1,23 @@
+# Go
+bin/
+coverage.out
+coverage.html
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies/build output
+node_modules/
+dist/
+
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local Docker data
+.docker-data/
+

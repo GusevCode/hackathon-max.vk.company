@@ -1,0 +1,11 @@
+.git
+.github
+.dockerignore
+.env
+.env.*
+!.env.example
+docs
+**/node_modules
+**/dist
+**/coverage*
+
