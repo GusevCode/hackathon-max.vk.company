@@ -1,8 +1,8 @@
-package health
+package httpserver
 
 import "net/http"
 
-// Handler exposes a minimal endpoint for Docker/Caddy/platform checks.
+// Handler exposes health checks used by Docker, Caddy and the status page.
 func Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

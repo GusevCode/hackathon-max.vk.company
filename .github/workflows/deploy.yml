@@ -21,6 +21,7 @@ env:
   # GHCR/Docker image references must be lowercase. The GitHub owner is
   # currently GusevCode, so keep the registry path normalized explicitly.
   IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-echo-bot
+  FRONTEND_IMAGE: ghcr.io/gusevcode/max-hackathon-frontend
 
 jobs:
   build-and-push:
@@ -56,6 +57,20 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}
             ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/frontend.Dockerfile
+          push: true
+          build-args: |
+            VITE_MAX_BOT_URL=${{ vars.MAX_BOT_URL }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -99,6 +114,7 @@ jobs:
         run: |
           ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
+             export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io --username '${{ secrets.GHCR_USERNAME }}' --password-stdin; \
              cd '${{ secrets.VPS_APP_DIR }}'; \

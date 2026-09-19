@@ -8,7 +8,7 @@
 git push / Pull Request
         |
         v
-GitHub Actions: gofmt -> vet -> tests (-race) -> golangci-lint -> Docker build
+GitHub Actions: Go + frontend tests/linters/builds -> Docker build
         |
         +---- merge в main
         |
@@ -23,13 +23,14 @@ GitHub Actions: gofmt -> vet -> tests (-race) -> golangci-lint -> Docker build
 ## Что уже подготовлено
 
 - `src/backend` — Go-модуль с echo-ботом MAX на официальном SDK.
-- `src/frontend` — место для будущего mini app.
+- `src/frontend` — React + TypeScript + Vite статусная страница.
 - `compose.yaml` — запуск бота и HTTPS-профиля Caddy.
 - `infra/docker/backend.Dockerfile` — multi-stage образ Go 1.24.
-- `infra/caddy/Caddyfile` — reverse proxy для домена; перед первым деплоем нужно заменить placeholder домена.
+- `infra/docker/frontend.Dockerfile` — сборка Vite и runtime-образ Caddy.
+- `infra/caddy/Caddyfile` — HTTPS, статический frontend и reverse proxy `/api/*`.
 - `.golangci.yml` — конфигурация golangci-lint 2.x.
 - `.github/workflows/ci.yml` — проверки push/PR.
-- `.github/workflows/deploy.yml` — ручная сборка, публикация в GHCR и деплой на VPS.
+- `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS.
 - `/healthz` — health endpoint backend на внутреннем порту `8080`.
 
 Пока бот получает сообщения через Long Polling, поэтому домен и публичный HTTPS не нужны для локальной разработки.
@@ -61,19 +62,19 @@ GitHub Actions: gofmt -> vet -> tests (-race) -> golangci-lint -> Docker build
 
 После покупки домена:
 
-1. Создать DNS `A`/`AAAA` запись на IP VPS, например `bot.example.ru`.
-2. Заменить placeholder `bot.example.com` в `infra/caddy/Caddyfile`.
+1. Создать DNS `A` запись `max.conspiracy-team.ru` на публичный IP VPS.
+2. Убедиться, что `max.conspiracy-team.ru` указан в `infra/caddy/Caddyfile`.
 3. Включить профиль `https`: `docker compose --profile https up -d`.
-4. Проверить `/healthz` через HTTPS.
+4. Проверить главную страницу и `/healthz` через HTTPS.
 5. Когда backend будет готов принимать webhook, переключить бота с Long Polling на webhook.
 
-### Этап 4. Mini app (если понадобится)
+### Этап 4. Расширение до mini app (если понадобится)
 
-- собрать frontend в `src/frontend`;
-- отдавать статику через Caddy по отдельному пути/поддомену;
+- развить существующий React frontend в интерфейс mini app;
+- обращаться к Go через same-origin `/api/*`, уже настроенный в Caddy;
 - добавить серверную проверку `initData`;
 - подключить URL mini app к боту в MAX;
-- расширить deploy workflow фронтенд-артефактом.
+- зарегистрировать URL mini app в MAX.
 
 ## GitHub secrets
 

@@ -1,0 +1,50 @@
+# Архитектура проекта
+
+## Frontend: Feature-Sliced Design
+
+Frontend живёт в `src/frontend/src` и разделён по слоям FSD:
+
+```text
+src/frontend/
+  src/
+    app/       точка входа приложения, глобальные стили и композиция
+    pages/     страницы и их сценарии (сейчас status)
+    widgets/   крупные блоки страницы (header, status-board)
+    features/  действия пользователя (check-api)
+    entities/  предметные сущности и их UI (service-status)
+    shared/    API-клиенты, типы и переиспользуемые UI-примитивы
+  public/      статические файлы
+  dist/        результат Vite build, не коммитится
+```
+
+Зависимости направлены сверху вниз: `app` может собирать `pages`, `pages` —
+`widgets` и `features`, а повторно используемый код располагается в `shared`.
+Слои не должны импортировать код из соседнего слоя на том же уровне.
+
+`dist` создаётся командой `npm run build` и используется только на этапе
+сборки Docker-образа frontend.
+
+## Backend: чистая архитектура, три слоя
+
+```text
+src/backend/
+  cmd/echo-bot/                         composition root
+  internal/
+    domain/                             слой предметной области
+    usecase/echo/                       слой приложения и use case
+    infrastructure/maxbot/              адаптер MAX SDK
+    infrastructure/httpserver/          HTTP health delivery
+```
+
+Правила зависимостей:
+
+1. `domain` не знает о фреймворках, HTTP и MAX SDK.
+2. `usecase` содержит бизнес-сценарий echo и порт `BotGateway`; он зависит
+   только от `domain` и стандартной библиотеки.
+3. `infrastructure` реализует порты application-слоя: MAX SDK и HTTP endpoint.
+4. `cmd/echo-bot` собирает зависимости и запускает приложение, но не содержит
+   бизнес-логики.
+
+Такой порядок позволяет тестировать echo-сценарий через fake gateway без сети и
+без токена MAX. Позже к тем же портам можно добавить webhook, БД или другой
+транспорт, не перенося SDK-зависимости в use case.

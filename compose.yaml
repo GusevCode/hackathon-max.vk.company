@@ -20,9 +20,12 @@ services:
     stop_grace_period: 15s
 
   # Enable this profile after the domain is pointed at the VPS. Caddy obtains
-  # and renews TLS and exposes the backend health endpoint over HTTPS.
+  # and renews TLS, serves the frontend, and proxies /api to the Go service.
   caddy:
-    image: caddy:2.10-alpine
+    build:
+      context: .
+      dockerfile: infra/docker/frontend.Dockerfile
+    image: ${FRONTEND_IMAGE:-max-hackathon-frontend:local}
     profiles: [https]
     restart: unless-stopped
     ports:
