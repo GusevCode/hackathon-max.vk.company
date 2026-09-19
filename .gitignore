@@ -21,3 +21,6 @@ Thumbs.db
 # Local Docker data
 .docker-data/
 
+# Local browser QA artifacts
+.playwright-cli/
+output/

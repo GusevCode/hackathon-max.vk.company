@@ -8,12 +8,22 @@
 src/
   backend/                 Go backend and MAX echo bot
     cmd/echo-bot/          executable entrypoint
-    internal/               application packages
+    internal/domain/        business entities
+    internal/usecase/       application services and ports
+    internal/infrastructure/ MAX and HTTP adapters
     go.mod
-  frontend/                reserved for MAX mini app
+  frontend/                React + TypeScript + Vite status page (FSD)
+    src/app/               app composition and global styles
+    src/pages/             pages
+    src/widgets/           page blocks
+    src/features/          user actions
+    src/entities/          domain UI/models
+    src/shared/            reusable code
+    dist/                  generated Vite output (not committed)
 infra/
   docker/backend.Dockerfile
-  caddy/Caddyfile           HTTPS/reverse proxy config
+  docker/frontend.Dockerfile
+  caddy/Caddyfile           HTTPS, static frontend and API proxy
 .github/workflows/
 compose.yaml
 .golangci.yml
@@ -30,35 +40,55 @@ compose.yaml
    golangci-lint run
    ```
 
+   ```bash
+   cd src/frontend
+   npm ci
+   npm run typecheck
+   npm run lint
+   npm test
+   npm run build
+   ```
+
 3. Run the bot directly:
 
    ```bash
    go run ./cmd/echo-bot
    ```
 
-4. Or run everything through Docker:
+4. Or run the bot through Docker:
 
    ```bash
    docker compose up --build bot
    ```
 
-The first echo version deliberately uses Long Polling. The domain and HTTPS profile are already prepared for health checks and the later Webhook/mini-app stage.
+The first echo version deliberately uses Long Polling. The `https` Compose profile
+publishes the React status page at `https://max.conspiracy-team.ru/`, proxies
+`/healthz` and `/api/*` to Go, and leaves the API boundary ready for a later
+Webhook/mini-app stage.
 
 ## CI/CD direction
 
-- Every push and pull request runs formatting checks, `go test -race`, coverage and `golangci-lint` in GitHub Actions.
-- A separate manually triggered workflow will build the image, publish it to GHCR and deploy over SSH to the VPS.
-- The VPS will run the pinned image through `docker compose`; the MAX token will exist only as a server-side secret in `.env`.
+- Every push and pull request checks Go and frontend formatting/types, tests,
+  linters, and builds the applications in GitHub Actions.
+- A separate manually triggered workflow builds the backend and frontend images,
+  publishes them to GHCR, and deploys them over SSH to the VPS.
+- The VPS runs pinned images through `docker compose`; the MAX token exists only
+  as a server-side secret in `.env`.
 
 See [`docs/MAX_DEVELOPMENT.md`](docs/MAX_DEVELOPMENT.md) for MAX API, Webhook, mini app, HTTPS and security notes.
 
 See [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) for the development, CI/CD, VPS and domain plan.
 
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the frontend FSD and
+backend clean architecture rules.
+
 See [`docs/DEPLOY_ECHO_BOT.md`](docs/DEPLOY_ECHO_BOT.md) for the complete first-deployment checklist.
 
 ## GitHub Actions deployment setup
 
-CI runs on every push and pull request. Deploy is a separate manual workflow: GitHub builds the Docker image, publishes it to GHCR and restarts the `bot` service on the VPS over SSH.
+CI runs on every push and pull request. Deploy is a separate manual workflow:
+GitHub builds both Docker images, publishes them to GHCR and restarts the `bot`
+and `caddy` services on the VPS over SSH.
 
 Before the first deployment, create these GitHub repository/environment secrets:
 
@@ -70,5 +100,10 @@ Before the first deployment, create these GitHub repository/environment secrets:
 - `GHCR_USERNAME` and `GHCR_READ_TOKEN` — credentials for pulling the private GHCR image (omit if the package is public).
 
 On the VPS, create `${VPS_APP_DIR}/.env` manually once and keep the real `MAX_BOT_TOKEN` there. The deploy workflow never copies secrets to the machine; it only updates the compose file and image tag.
+
+Optionally add the GitHub repository variable `MAX_BOT_URL` after the public bot
+username is known. Its value should be the complete URL, for example
+`https://max.ru/<username>`; the frontend shows the bot button only when this
+variable exists.
 
 To deploy, open **Actions → Deploy → Run workflow**, select a ref, and run it. The VPS does not need a shell session for ordinary updates.

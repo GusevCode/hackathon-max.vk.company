@@ -3,80 +3,54 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/health"
-	maxbot "github.com/max-messenger/max-bot-api-client-go"
-	"github.com/max-messenger/max-bot-api-client-go/schemes"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/httpserver"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/maxbot"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/echo"
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	token := os.Getenv("MAX_BOT_TOKEN")
 	if token == "" {
-		log.Fatal("MAX_BOT_TOKEN is required")
+		logger.Error("MAX_BOT_TOKEN is required")
+		return
 	}
-	// test
-	api, err := maxbot.New(token)
+
+	bot, err := maxbot.New(token)
 	if err != nil {
-		log.Fatalf("create MAX client: %v", err)
+		logger.Error("create MAX client", "error", err)
+		return
 	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	botInfo, err := api.Bots.GetBot(ctx)
-	if err != nil {
-		log.Printf("get MAX bot info: %v", err)
-		return
-	}
-	log.Printf("MAX bot: name=%q username=%q user_id=%d", botInfo.Name, botInfo.Username, botInfo.UserId)
-	if botInfo.Username != "" {
-		log.Printf("MAX bot link: https://max.ru/%s", botInfo.Username)
-	} else {
-		log.Println("MAX bot has no public username yet")
-	}
-
 	healthServer := &http.Server{
 		Addr:              ":8080",
-		Handler:           health.Handler(),
+		Handler:           httpserver.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
-		if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("health server: %v", err)
+		if serveErr := healthServer.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Error("health server", "error", serveErr)
 		}
 	}()
 
-	log.Println("echo bot started (long polling)")
-	for update := range api.GetUpdates(ctx) {
-		messageUpdate, ok := update.(*schemes.MessageCreatedUpdate)
-		if !ok {
-			continue
-		}
-		if messageUpdate.GetText() == "" {
-			continue
-		}
-
-		err := api.Messages.Send(
-			ctx,
-			maxbot.NewMessage().
-				SetChat(messageUpdate.GetChatID()).
-				SetText(messageUpdate.GetText()),
-		)
-		if err != nil {
-			log.Printf("send echo: %v", err)
-		}
+	logger.Info("echo bot started", "transport", "long_polling")
+	if runErr := echo.NewService(bot, logger).Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
+		logger.Error("echo bot stopped with error", "error", runErr)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := healthServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("health server shutdown: %v", err)
+		logger.Error("health server shutdown", "error", err)
 	}
-
-	log.Println("echo bot stopped")
 }
