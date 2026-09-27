@@ -123,3 +123,12 @@ jobs:
              docker compose --profile https pull bot caddy tarantool minio; \
              docker compose --profile https up -d --remove-orphans bot caddy; \
              docker image prune -f"
+
+      - name: Verify deployed revision
+        shell: bash
+        run: |
+          expected='${{ steps.revision.outputs.sha }}'
+          actual="$(curl --fail --silent --show-error https://max.conspiracy-team.ru/api/version | jq -r '.version')"
+          echo "Expected revision: ${expected}"
+          echo "Running revision:  ${actual}"
+          test "${actual}" = "${expected}"
