@@ -138,6 +138,7 @@ Frontend сохраняется как status page и задел под буду
 Основные переменные находятся в `.env` и описаны в `.env.example`:
 
 - `APP_NAME`;
+- `APP_VERSION` (SHA коммита или локальная метка, показывается на status page);
 - `MAX_BOT_TOKEN`;
 - `PUBLIC_BASE_URL`;
 - `MAX_WEBHOOK_SECRET`;

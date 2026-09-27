@@ -10,6 +10,7 @@ services:
         required: false
     environment:
       APP_NAME: ${APP_NAME:-ЖКХ Контроль}
+      APP_VERSION: ${APP_VERSION:-local}
       MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:?MAX_BOT_TOKEN is required}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
       MAX_WEBHOOK_SECRET: ${MAX_WEBHOOK_SECRET:?MAX_WEBHOOK_SECRET is required}

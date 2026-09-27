@@ -64,10 +64,13 @@ inline-клавиатуру.
 
 ```bash
 curl -fsS https://max.conspiracy-team.ru/healthz
+curl -fsS https://max.conspiracy-team.ru/api/version
 docker compose ps
 docker compose logs --tail=100 bot tarantool minio caddy
 ```
 
 Вебхук регистрируется автоматически при старте приложения как
 `https://max.conspiracy-team.ru/webhook`; вручную заходить на VPS для каждой
-пересборки не требуется, если деплой выполняет GitHub Actions.
+пересборки не требуется, если деплой выполняет GitHub Actions. На главной
+странице status page версия отображается в блоке `DEPLOYED VERSION`; при
+деплое через workflow это SHA опубликованного коммита.

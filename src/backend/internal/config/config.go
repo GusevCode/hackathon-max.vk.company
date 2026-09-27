@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	ApplicationVersion    string
 	ApplicationName       string
 	MaxBotToken           string
 	InitialAdminMaxUserID uint64
@@ -25,6 +26,7 @@ type Config struct {
 
 func Load() (Config, error) {
 	cfg := Config{
+		ApplicationVersion:    envOrDefault("APP_VERSION", "dev"),
 		ApplicationName:       envOrDefault("APP_NAME", "\u0416\u041a\u0425 \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c"),
 		MaxBotToken:           os.Getenv("MAX_BOT_TOKEN"),
 		InitialAdminMaxUserID: 0,

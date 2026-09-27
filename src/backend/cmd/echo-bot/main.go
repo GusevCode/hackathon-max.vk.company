@@ -50,7 +50,7 @@ func main() {
 
 	healthServer := &http.Server{
 		Addr:              ":8080",
-		Handler:           httpserver.Handler(bot.WebhookHandler(cfg.MaxWebhookSecret)),
+		Handler:           httpserver.HandlerWithVersion(bot.WebhookHandler(cfg.MaxWebhookSecret), cfg.ApplicationVersion),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
