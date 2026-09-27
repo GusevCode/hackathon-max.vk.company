@@ -6,7 +6,7 @@
 
 ```text
 src/
-  backend/                 Go backend and MAX echo bot
+  backend/                 Go backend and MAX ЖКХ Контроль bot
     cmd/echo-bot/          executable entrypoint
     internal/domain/        business entities
     internal/usecase/       application services and ports
@@ -61,10 +61,10 @@ compose.yaml
    docker compose up --build bot
    ```
 
-The first echo version deliberately uses Long Polling. The `https` Compose profile
-publishes the React status page at `https://max.conspiracy-team.ru/`, proxies
-`/healthz` and `/api/*` to Go, and leaves the API boundary ready for a later
-Webhook/mini-app stage.
+The bot uses Webhook transport. The `https` Compose profile publishes the React
+status page at `https://max.conspiracy-team.ru/`, proxies `/healthz`, `/webhook`
+and `/api/*` to Go, and runs Tarantool and MinIO for application data and photo
+evidence.
 
 ## CI/CD direction
 
@@ -83,6 +83,9 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the frontend FSD and
 backend clean architecture rules.
 
 See [`docs/DEPLOY_ECHO_BOT.md`](docs/DEPLOY_ECHO_BOT.md) for the complete first-deployment checklist.
+
+See [`docs/MVP_TESTING.md`](docs/MVP_TESTING.md) for the role/task/photo workflow
+used to test stages 1–4.
 
 ## GitHub Actions deployment setup
 

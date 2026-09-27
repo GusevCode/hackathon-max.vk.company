@@ -9,7 +9,19 @@ services:
       - path: .env
         required: false
     environment:
+      APP_NAME: ${APP_NAME:-ЖКХ Контроль}
+      APP_VERSION: ${APP_VERSION:-local}
       MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:?MAX_BOT_TOKEN is required}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
+      MAX_WEBHOOK_SECRET: ${MAX_WEBHOOK_SECRET:?MAX_WEBHOOK_SECRET is required}
+      INITIAL_ADMIN_MAX_USER_ID: ${INITIAL_ADMIN_MAX_USER_ID:?INITIAL_ADMIN_MAX_USER_ID is required}
+      TARANTOOL_ADDRESS: ${TARANTOOL_ADDRESS:-tarantool:3301}
+      TARANTOOL_USER: ${TARANTOOL_USER:-app}
+      TARANTOOL_PASSWORD: ${TARANTOOL_PASSWORD:?TARANTOOL_PASSWORD is required}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-work-evidence}
     expose:
       - "8080"
     healthcheck:
@@ -18,6 +30,36 @@ services:
       timeout: 5s
       retries: 3
     stop_grace_period: 15s
+    depends_on:
+      - tarantool
+      - minio
+
+  tarantool:
+    image: ${TARANTOOL_IMAGE:-tarantool/tarantool:3.4}
+    restart: unless-stopped
+    command: ["tarantool", "/opt/tarantool/init.lua"]
+    environment:
+      TARANTOOL_USER: ${TARANTOOL_USER:-app}
+      TARANTOOL_PASSWORD: ${TARANTOOL_PASSWORD:?TARANTOOL_PASSWORD is required}
+      INITIAL_ADMIN_MAX_USER_ID: ${INITIAL_ADMIN_MAX_USER_ID:?INITIAL_ADMIN_MAX_USER_ID is required}
+    volumes:
+      - tarantool_data:/var/lib/tarantool
+      - ./infra/tarantool/init.lua:/opt/tarantool/init.lua:ro
+    expose:
+      - "3301"
+
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - minio_data:/data
+    expose:
+      - "9000"
+      - "9001"
 
   # Enable this profile after the domain is pointed at the VPS. Caddy obtains
   # and renews TLS, serves the frontend, and proxies /api to the Go service.
@@ -41,3 +83,5 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  tarantool_data:
+  minio_data:

@@ -39,6 +39,8 @@ button:disabled { cursor: progress; }
 .signal.is-offline .signal-dot { background: var(--danger); box-shadow: 0 0 18px rgba(255, 107, 119, .55); }
 h1 { margin: 24px 0 22px; color: var(--text); font-size: clamp(3.25rem, 7.4vw, 5.7rem); font-weight: 800; letter-spacing: -.075em; line-height: .98; }
 .hero p { max-width: 610px; margin: 0 auto; color: var(--muted); font-size: 16px; line-height: 1.7; }
+.version-badge { display: inline-flex; align-items: center; gap: 12px; margin-top: 24px; padding: 8px 11px 8px 13px; border: 1px solid rgba(83, 113, 144, .52); border-radius: 999px; color: #7890aa; background: rgba(13, 23, 35, .7); font: 500 10px/1 Consolas, monospace; letter-spacing: .12em; }
+.version-badge code { max-width: 280px; overflow: hidden; color: #d8e7f8; font: 600 11px/1 Consolas, monospace; letter-spacing: 0; text-overflow: ellipsis; }
 .status-card { width: min(100%, 900px); margin-top: 73px; display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(13, 23, 35, .84); border: 1px solid var(--border); border-radius: 17px; box-shadow: 0 20px 70px rgba(0,0,0,.16); }
 .status-item { min-height: 132px; padding: 31px 32px; display: flex; align-items: flex-start; gap: 18px; }
 .status-item + .status-item { border-left: 1px solid var(--border); }

@@ -1,11 +1,13 @@
 import { apiStateLabel } from "../../../entities/service-status/model/types";
 import { useApiHealth } from "../../../features/check-api/model/useApiHealth";
+import { useAppVersion } from "../../../features/show-version/model/useAppVersion";
 import { ArrowIcon } from "../../../shared/ui/icons";
 import { SiteHeader } from "../../../widgets/site-header/ui/SiteHeader";
 import { StatusBoard } from "../../../widgets/status-board/ui/StatusBoard";
 
 export function StatusPage() {
   const { state, isRefreshing, refresh } = useApiHealth();
+  const version = useAppVersion();
   const botUrl = import.meta.env.VITE_MAX_BOT_URL?.trim();
   const isOnline = state === "online";
   const protocolLabel = window.location.protocol === "https:" ? "Подключено" : "Локальный режим";
@@ -26,6 +28,10 @@ export function StatusPage() {
           </div>
           <h1 id="page-title">Сервис запущен</h1>
           <p>Go backend, Docker и автоматический деплой работают на одном защищённом контуре.</p>
+          <div className="version-badge" aria-label={`Версия приложения: ${version}`}>
+            <span>DEPLOYED VERSION</span>
+            <code>{version}</code>
+          </div>
         </section>
 
         <StatusBoard apiState={state} protocolLabel={protocolLabel} apiLabel={apiStateLabel(state)} />

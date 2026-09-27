@@ -12,6 +12,10 @@ max.conspiracy-team.ru {
     reverse_proxy bot:8080
   }
 
+  handle /webhook {
+    reverse_proxy bot:8080
+  }
+
   handle /api/* {
     reverse_proxy bot:8080
   }
