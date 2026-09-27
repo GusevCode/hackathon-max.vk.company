@@ -269,3 +269,8 @@ docker compose logs --tail=100 caddy
 - [Установка Docker Engine на Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 - [GitHub Container Registry и права токенов](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 - [Automatic HTTPS в Caddy](https://caddyserver.com/docs/automatic-https)
+# Примечание об актуальности
+
+Этот документ описывает первоначальный echo-бот и сохранён как историческая
+инструкция. Актуальная архитектура приложения, Webhook, Tarantool, MinIO,
+роли и roadmap находятся в [PRODUCT_PASSPORT.md](PRODUCT_PASSPORT.md).

@@ -22,28 +22,33 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 
 ## Что уже подготовлено
 
-- `src/backend` — Go-модуль с echo-ботом MAX на официальном SDK.
+- `src/backend` — Go-модуль MAX-бота на чистой архитектуре.
 - `src/frontend` — React + TypeScript + Vite статусная страница.
 - `compose.yaml` — запуск бота и HTTPS-профиля Caddy.
-- `infra/docker/backend.Dockerfile` — multi-stage образ Go 1.24.
+- `infra/docker/backend.Dockerfile` — multi-stage образ Go 1.25.
 - `infra/docker/frontend.Dockerfile` — сборка Vite и runtime-образ Caddy.
 - `infra/caddy/Caddyfile` — HTTPS, статический frontend и reverse proxy `/api/*`.
 - `.golangci.yml` — конфигурация golangci-lint 2.x.
 - `.github/workflows/ci.yml` — проверки push/PR.
 - `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS.
 - `/healthz` — health endpoint backend на внутреннем порту `8080`.
+- `/webhook` — защищённый endpoint MAX Webhook на публичном HTTPS-домене.
+- `tarantool` — один экземпляр БД с начальной схемой из `infra/tarantool/init.lua`.
+- `minio` — локальное S3-совместимое хранилище фотографий.
 
-Пока бот получает сообщения через Long Polling, поэтому домен и публичный HTTPS не нужны для локальной разработки.
+Бот получает события через Webhook. Для production обязательны DNS, HTTPS и
+`PUBLIC_BASE_URL`, указывающий на домен VPS.
 
 ## Этапы
 
-### Этап 1. Локальный echo-бот
+### Этап 1. Локальный бот и Webhook
 
 1. Скопировать `.env.example` в `.env`.
 2. Заполнить `MAX_BOT_TOKEN`.
 3. Запустить `go test -race ./...` и `go vet ./...` из `src/backend`.
 4. Запустить `go run ./cmd/echo-bot` или `docker compose up --build bot`.
-5. Написать боту в MAX и проверить, что он повторяет текст.
+5. Запустить Tarantool и MinIO через Docker Compose.
+6. Проверить регистрацию `/webhook` через MAX API и отправить боту тестовое сообщение.
 
 ### Этап 2. Первый VPS-деплой без домена
 
@@ -66,7 +71,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 2. Убедиться, что `max.conspiracy-team.ru` указан в `infra/caddy/Caddyfile`.
 3. Включить профиль `https`: `docker compose --profile https up -d`.
 4. Проверить главную страницу и `/healthz` через HTTPS.
-5. Когда backend будет готов принимать webhook, переключить бота с Long Polling на webhook.
+5. Проверить, что MAX Webhook зарегистрирован и принимает события.
 
 ### Этап 4. Расширение до mini app (если понадобится)
 
@@ -90,7 +95,8 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 | `GHCR_USERNAME` | пользователь/robot account для pull из GHCR |
 | `GHCR_READ_TOKEN` | token только с `read:packages` |
 
-`MAX_BOT_TOKEN` не нужен GitHub Actions: он остаётся только в `.env` на VPS и локальной машине разработчика.
+`MAX_BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, пароли Tarantool и MinIO не нужны GitHub
+Actions: они остаются только в `.env` на VPS и локальной машине разработчика.
 
 ## Правила эксплуатации
 
@@ -99,7 +105,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - Не хранить `.env`, SSH-ключи и токены в GitHub artifacts.
 - Использовать immutable image tag по commit SHA; `latest` оставлять только как удобный alias.
 - После deploy проверять health endpoint и логи контейнера.
-- Бэкапить только появившиеся позже данные/БД; на первом этапе БД нет.
+- Настроить резервное копирование Tarantool и MinIO после появления данных.
 - Для production MAX использовать webhook и доверенный TLS-сертификат.
 
 ### TLS-сертификат MAX API

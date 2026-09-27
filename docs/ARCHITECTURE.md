@@ -31,7 +31,7 @@ src/backend/
   cmd/echo-bot/                         composition root
   internal/
     domain/                             слой предметной области
-    usecase/echo/                       слой приложения и use case
+    usecase/control/                    сценарии ролей, заданий и проверок
     infrastructure/maxbot/              адаптер MAX SDK
     infrastructure/httpserver/          HTTP health delivery
 ```
@@ -39,12 +39,12 @@ src/backend/
 Правила зависимостей:
 
 1. `domain` не знает о фреймворках, HTTP и MAX SDK.
-2. `usecase` содержит бизнес-сценарий echo и порт `BotGateway`; он зависит
+2. `usecase` содержит бизнес-сценарии контроля работ и порт `BotGateway`; он зависит
    только от `domain` и стандартной библиотеки.
 3. `infrastructure` реализует порты application-слоя: MAX SDK и HTTP endpoint.
 4. `cmd/echo-bot` собирает зависимости и запускает приложение, но не содержит
    бизнес-логики.
 
-Такой порядок позволяет тестировать echo-сценарий через fake gateway без сети и
-без токена MAX. Позже к тем же портам можно добавить webhook, БД или другой
-транспорт, не перенося SDK-зависимости в use case.
+Такой порядок позволяет тестировать сценарии через fake gateway без сети и
+без токена MAX. Webhook, Tarantool и MinIO подключаются в composition root и
+не переносят SDK-зависимости в use case.

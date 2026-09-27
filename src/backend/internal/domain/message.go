@@ -10,5 +10,40 @@ type BotInfo struct {
 // Message is a normalized incoming chat message.
 type Message struct {
 	ChatID int64
+	UserID int64
 	Text   string
+}
+
+type Photo struct {
+	URL   string
+	Token string
+}
+
+type Event struct {
+	Kind       EventKind
+	ChatID     int64
+	UserID     int64
+	Text       string
+	Photos     []Photo
+	Payload    string
+	CallbackID string
+}
+
+type EventKind string
+
+const (
+	EventMessage  EventKind = "message"
+	EventCallback EventKind = "callback"
+)
+
+type Button struct {
+	Text    string
+	Payload string
+	Row     int
+}
+
+type OutgoingMessage struct {
+	ChatID  int64
+	Text    string
+	Buttons []Button
 }
