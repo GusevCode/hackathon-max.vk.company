@@ -28,10 +28,11 @@ src/frontend/
 
 ```text
 src/backend/
-  cmd/echo-bot/                         composition root
+  cmd/control-bot/                       composition root
   internal/
     domain/                             слой предметной области
-    usecase/control/                    сценарии ролей, заданий и проверок
+    usecase/control/                    меню, wizard-сценарии и workflow
+    usecase/access/                     централизованная ACL-политика
     infrastructure/maxbot/              адаптер MAX SDK
     infrastructure/httpserver/          HTTP health delivery
 ```
@@ -42,8 +43,13 @@ src/backend/
 2. `usecase` содержит бизнес-сценарии контроля работ и порт `BotGateway`; он зависит
    только от `domain` и стандартной библиотеки.
 3. `infrastructure` реализует порты application-слоя: MAX SDK и HTTP endpoint.
-4. `cmd/echo-bot` собирает зависимости и запускает приложение, но не содержит
+4. `cmd/control-bot` собирает зависимости и запускает приложение, но не содержит
    бизнес-логики.
+
+Внутри `usecase/control` один файл отвечает за один связный сценарий: меню,
+callbacks, приглашения, пользователи, задания, справочники и пошаговые wizard’ы
+разнесены по отдельным файлам. Проверки полномочий не копируются в handlers, а
+используют пакет `usecase/access`.
 
 Такой порядок позволяет тестировать сценарии через fake gateway без сети и
 без токена MAX. Webhook, Tarantool и SeaweedFS подключаются в composition root и

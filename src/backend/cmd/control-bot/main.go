@@ -122,7 +122,7 @@ func main() {
 		}
 	}
 	if runErr := control.NewService(bot, repository, photoStore, logger, storage).Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
-		logger.Error("echo bot stopped with error", "error", runErr)
+		logger.Error("control bot stopped with error", "error", runErr)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

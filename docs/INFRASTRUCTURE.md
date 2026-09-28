@@ -30,7 +30,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - `infra/caddy/Caddyfile` — HTTPS, статический frontend и reverse proxy `/api/*`.
 - `.golangci.yml` — конфигурация golangci-lint 2.x.
 - `.github/workflows/ci.yml` — проверки push/PR.
-- `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS.
+- `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS; при деплое перезапускается Tarantool для применения схемы.
 - `/healthz` — health endpoint backend на внутреннем порту `8080`.
 - `/webhook` — защищённый endpoint MAX Webhook на публичном HTTPS-домене.
 - `tarantool` — один экземпляр БД с начальной схемой из `infra/tarantool/init.lua`.
@@ -50,7 +50,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 1. Скопировать `.env.example` в `.env`.
 2. Заполнить `MAX_BOT_TOKEN`.
 3. Запустить `go test -race ./...` и `go vet ./...` из `src/backend`.
-4. Запустить `go run ./cmd/echo-bot` или `docker compose up --build bot`.
+4. Запустить `go run ./cmd/control-bot` или `docker compose up --build bot`.
 5. Запустить Tarantool и SeaweedFS через Docker Compose.
 6. Проверить регистрацию `/webhook` через MAX API и отправить боту тестовое сообщение.
 

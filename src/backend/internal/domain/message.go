@@ -23,6 +23,7 @@ type Event struct {
 	Kind       EventKind
 	ChatID     int64
 	UserID     int64
+	MessageID  string
 	Text       string
 	Photos     []Photo
 	Payload    string
@@ -43,7 +44,8 @@ type Button struct {
 }
 
 type OutgoingMessage struct {
-	ChatID  int64
-	Text    string
-	Buttons []Button
+	ChatID    int64
+	MessageID string
+	Text      string
+	Buttons   []Button
 }

@@ -20,7 +20,7 @@ concurrency:
 env:
   # GHCR/Docker image references must be lowercase. The GitHub owner is
   # currently GusevCode, so keep the registry path normalized explicitly.
-  IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-echo-bot
+  IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-bot
   FRONTEND_IMAGE: ghcr.io/gusevcode/max-hackathon-frontend
   SEAWEEDFS_IMAGE: chrislusf/seaweedfs:4.47
 
@@ -123,7 +123,7 @@ jobs:
              echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io --username '${{ secrets.GHCR_USERNAME }}' --password-stdin; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
              docker compose --profile https pull bot caddy tarantool seaweedfs; \
-             docker compose --profile https up -d --force-recreate --remove-orphans bot caddy; \
+             docker compose --profile https up -d --force-recreate --remove-orphans tarantool bot caddy; \
              docker image prune -f"
 
       - name: Verify deployed revision

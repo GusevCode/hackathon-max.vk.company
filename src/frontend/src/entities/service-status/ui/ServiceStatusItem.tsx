@@ -15,6 +15,10 @@ export function ServiceStatusItem({ label, value, icon, online = false }: Servic
         <span className="status-key">{label}</span>
         <strong>{value}</strong>
       </span>
+      <span className={`service-state ${online ? "is-online" : ""}`}>
+        <span className="service-state-dot" />
+        {online ? "Работает" : "Проверка"}
+      </span>
     </div>
   );
 }

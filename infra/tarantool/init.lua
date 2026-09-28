@@ -31,6 +31,7 @@ box.once("application_schema_v2", function()
         { name = "roles", type = "array" },
         { name = "status", type = "string" },
         { name = "created_at", type = "number" },
+        { name = "manager_id", type = "string", is_nullable = true },
     })
     users:create_index("primary", { parts = { "id" }, if_not_exists = true })
     users:create_index("max_user_id", { parts = { "max_user_id" }, unique = false, if_not_exists = true })
@@ -72,7 +73,7 @@ box.once("application_schema_v2", function()
     local initial_admin = tonumber(os.getenv("INITIAL_ADMIN_MAX_USER_ID") or "0")
     if initial_admin and initial_admin > 0 then
         organizations:replace({ "system", "System organization", os.time(), true })
-        users:replace({ "initial-admin", "system", initial_admin, "Administrator", { "admin" }, "active", os.time() })
+        users:replace({ "initial-admin", "system", initial_admin, "Administrator", { "admin" }, "active", os.time(), "" })
     end
 
     local tasks = box.schema.space.create("tasks", { if_not_exists = true })
@@ -115,4 +116,19 @@ box.once("application_schema_v2", function()
     })
     evidence:create_index("primary", { parts = { "id" }, if_not_exists = true })
     evidence:create_index("task_id", { parts = { "task_id" }, unique = false, if_not_exists = true })
+end)
+
+box.once("users_manager_id_v1", function()
+    local users = box.space.users
+    local format = users:format()
+    local has_manager_id = false
+    for _, field in ipairs(format) do
+        if field.name == "manager_id" then
+            has_manager_id = true
+        end
+    end
+    if not has_manager_id then
+        table.insert(format, { name = "manager_id", type = "string", is_nullable = true })
+        users:format(format)
+    end
 end)

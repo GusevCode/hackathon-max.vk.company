@@ -90,7 +90,11 @@ func normalizeUpdate(update schemes.UpdateInterface) (domain.Event, bool) {
 		}
 		return domain.Event{Kind: domain.EventMessage, ChatID: value.GetChatID(), UserID: value.GetUserID(), Text: value.GetText(), Photos: photos}, true
 	case *schemes.MessageCallbackUpdate:
-		return domain.Event{Kind: domain.EventCallback, ChatID: value.GetChatID(), UserID: value.GetUserID(), Payload: value.Callback.Payload, CallbackID: value.Callback.CallbackID}, true
+		messageID := ""
+		if value.Message != nil {
+			messageID = value.Message.Body.Mid
+		}
+		return domain.Event{Kind: domain.EventCallback, ChatID: value.GetChatID(), UserID: value.GetUserID(), MessageID: messageID, Payload: value.Callback.Payload, CallbackID: value.Callback.CallbackID}, true
 	default:
 		return domain.Event{}, false
 	}
@@ -123,6 +127,9 @@ func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) error
 			row.AddCallback(button.Text, schemes.DEFAULT, button.Payload)
 		}
 		msg.AddKeyboard(keyboard)
+	}
+	if message.MessageID != "" {
+		return c.api.Messages.EditMessage(ctx, message.MessageID, msg)
 	}
 	return c.api.Messages.Send(ctx, msg)
 }
