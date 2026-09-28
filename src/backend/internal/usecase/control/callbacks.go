@@ -136,6 +136,8 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	case "submit":
 		s.setSession(event.UserID, Session{Kind: SessionPhotoAfter, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "📸 Прикрепите фотографию ПОСЛЕ выполнения работы:", nil)
+	case "photos":
+		return s.sendTaskPhotos(ctx, event, task)
 	case "unable":
 		s.setSession(event.UserID, Session{Kind: SessionUnableReason, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "Напишите причину, по которой задание невозможно выполнить:", nil)

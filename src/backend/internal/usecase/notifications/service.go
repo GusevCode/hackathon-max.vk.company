@@ -30,13 +30,26 @@ func (s *Service) Run(ctx context.Context) error {
 			s.logger.Warn("skip notification without recipient", "notification_id", notification.ID)
 			continue
 		}
-		_, err := s.sender.Send(ctx, domain.OutgoingMessage{
-			UserID:  notification.RecipientUserID,
-			Text:    notification.Text,
-			Buttons: notification.Buttons,
-		})
+		message := domain.OutgoingMessage{
+			UserID: notification.RecipientUserID,
+			Text:   notification.Text,
+			Photos: notification.Photos,
+		}
+		_, err := s.sender.Send(ctx, message)
 		if err != nil {
 			s.logger.Warn("send notification", "error", err, "notification_id", notification.ID, "kind", notification.Kind, "user_id", notification.RecipientUserID)
+			if len(message.Photos) > 0 {
+				message.Photos = nil
+				if _, fallbackErr := s.sender.Send(ctx, message); fallbackErr != nil {
+					s.logger.Warn("send notification fallback", "error", fallbackErr, "notification_id", notification.ID, "user_id", notification.RecipientUserID)
+					continue
+				}
+			}
+		}
+		if len(notification.Buttons) > 0 {
+			if _, menuErr := s.sender.Send(ctx, domain.OutgoingMessage{UserID: notification.RecipientUserID, Text: "🏠 Главное меню", Buttons: notification.Buttons}); menuErr != nil {
+				s.logger.Warn("send refreshed menu", "error", menuErr, "notification_id", notification.ID, "user_id", notification.RecipientUserID)
+			}
 		}
 	}
 	return ctx.Err()

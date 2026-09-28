@@ -53,8 +53,28 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
 		)
 	}
+	if len(task.AfterPhotos) > 0 {
+		buttons = append(buttons, domain.Button{Text: "📸 Посмотреть фото", Payload: "task:photos:" + task.ID, Row: 2})
+	}
 	buttons = append(buttons, domain.Button{Text: "↩️ К заданиям", Payload: "menu:tasks", Row: 3})
 	return s.send(ctx, event.ChatID, text, buttons)
+}
+
+func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task) error {
+	if len(task.AfterPhotos) == 0 {
+		return s.send(ctx, event.ChatID, "📸 Для этого задания пока нет фотографий.", nil)
+	}
+	_, err := s.bot.Send(ctx, domain.OutgoingMessage{
+		ChatID: event.ChatID,
+		Text:   "📸 Фотоотчёт: " + task.Title,
+		Photos: task.AfterPhotos,
+		Buttons: []domain.Button{{
+			Text:    "↩️ К заданию",
+			Payload: "task:view:" + task.ID,
+			Row:     0,
+		}},
+	})
+	return err
 }
 
 func (s *Service) takeTask(ctx context.Context, chatID int64, user domain.User, task domain.Task) error {
@@ -124,8 +144,7 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 	s.persistTask(ctx, task)
 	s.clearSession(event.UserID)
 	if manager, ok := s.userByID(task.OrganizationID, task.ManagerID); ok {
-		buttons := []domain.Button{{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0}, {Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0}}
-		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), buttons); err != nil {
+		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), menuForUser(manager), task.AfterPhotos); err != nil {
 			s.logger.Warn("notify manager", "error", err, "task_id", task.ID)
 		}
 	}

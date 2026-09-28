@@ -19,5 +19,8 @@ type Notification struct {
 	RecipientUserID int64
 	TaskID          string
 	Text            string
+	// Buttons are rendered in a separate message as the refreshed menu. They
+	// are intentionally not attached to the notification text itself.
 	Buttons         []Button
+	Photos          []Photo
 }

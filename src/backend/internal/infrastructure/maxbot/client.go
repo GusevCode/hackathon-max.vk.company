@@ -3,7 +3,9 @@ package maxbot
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
@@ -13,6 +15,7 @@ import (
 
 type Client struct {
 	api     *maxapi.Api
+	token   string
 	updates chan schemes.UpdateInterface
 }
 
@@ -21,7 +24,7 @@ func New(token string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create MAX client: %w", err)
 	}
-	return &Client{api: api, updates: make(chan schemes.UpdateInterface, 100)}, nil
+	return &Client{api: api, token: token, updates: make(chan schemes.UpdateInterface, 100)}, nil
 }
 
 func (c *Client) GetInfo(ctx context.Context) (domain.BotInfo, error) {
@@ -131,21 +134,12 @@ func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) (stri
 	} else {
 		msg.SetChat(message.ChatID)
 	}
-	if len(message.Buttons) > 0 {
-		keyboard := c.api.Messages.NewKeyboardBuilder()
-		rows := make(map[int]*maxapi.KeyboardRow)
-		for _, button := range message.Buttons {
-			row, ok := rows[button.Row]
-			if !ok {
-				row = keyboard.AddRow()
-				rows[button.Row] = row
-			}
-			row.AddCallback(button.Text, schemes.DEFAULT, button.Payload)
-		}
-		msg.AddKeyboard(keyboard)
-	}
+	c.addKeyboard(msg, message.Buttons)
 	if message.MessageID != "" {
 		return message.MessageID, c.api.Messages.EditMessage(ctx, message.MessageID, msg)
+	}
+	if err := c.addPhotos(ctx, msg, message.Photos); err != nil {
+		return "", err
 	}
 	result, err := c.api.Messages.SendWithResult(ctx, msg)
 	if err != nil {
@@ -155,6 +149,78 @@ func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) (stri
 		return "", fmt.Errorf("MAX returned an empty message")
 	}
 	return result.Body.Mid, nil
+}
+
+func (c *Client) addKeyboard(msg *maxapi.Message, buttons []domain.Button) {
+	if len(buttons) == 0 {
+		return
+	}
+	keyboard := c.api.Messages.NewKeyboardBuilder()
+	rows := make(map[int]*maxapi.KeyboardRow)
+	for _, button := range buttons {
+		row, ok := rows[button.Row]
+		if !ok {
+			row = keyboard.AddRow()
+			rows[button.Row] = row
+		}
+		row.AddCallback(button.Text, schemes.DEFAULT, button.Payload)
+	}
+	msg.AddKeyboard(keyboard)
+}
+
+func (c *Client) addPhotos(ctx context.Context, msg *maxapi.Message, photos []domain.Photo) error {
+	for _, photo := range photos {
+		body, err := c.downloadPhoto(ctx, photo)
+		if err != nil {
+			return err
+		}
+		tokens, uploadErr := c.api.Uploads.UploadPhotoFromReader(ctx, body)
+		_ = body.Close()
+		if uploadErr != nil {
+			return fmt.Errorf("upload photo to MAX: %w", uploadErr)
+		}
+		msg.AddPhoto(tokens)
+	}
+	return nil
+}
+
+func (c *Client) downloadPhoto(ctx context.Context, photo domain.Photo) (io.ReadCloser, error) {
+	if strings.TrimSpace(photo.URL) == "" {
+		return nil, fmt.Errorf("download photo from MAX: URL is empty")
+	}
+	parsedURL, err := url.Parse(photo.URL)
+	if err != nil {
+		return nil, fmt.Errorf("parse photo URL: %w", err)
+	}
+	if !isTrustedMAXHost(parsedURL.Hostname()) {
+		return nil, fmt.Errorf("download photo from MAX: untrusted host %q", parsedURL.Hostname())
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, photo.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create photo request: %w", err)
+	}
+	if c.token != "" {
+		request.Header.Set("Authorization", c.token)
+	}
+	response, err := (&http.Client{}).Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("download photo from MAX: %w", err)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		_ = response.Body.Close()
+		return nil, fmt.Errorf("download photo from MAX: HTTP %s", response.Status)
+	}
+	return response.Body, nil
+}
+
+func isTrustedMAXHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	for _, suffix := range []string{"max.ru", "oneme.ru", "okcdn.ru"} {
+		if host == suffix || strings.HasSuffix(host, "."+suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) DeleteMessage(ctx context.Context, messageID string) error {
