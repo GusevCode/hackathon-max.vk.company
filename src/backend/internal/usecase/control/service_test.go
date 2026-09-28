@@ -221,6 +221,76 @@ func TestAdminCanClearTasksWithoutRemovingEmployees(t *testing.T) {
 	}
 }
 
+func TestManagerCanCloseTaskAndHideItFromActiveLists(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	manager := domain.User{ID: "manager", OrganizationID: "system", MaxUserID: 3, DisplayName: "Руководитель", Roles: []domain.Role{domain.RoleManager}, Status: domain.UserActive}
+	employee := domain.User{ID: "employee", OrganizationID: "system", MaxUserID: 2, DisplayName: "Сотрудник", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive, ManagerID: manager.ID}
+	repo.SaveUser(manager)
+	repo.SaveUser(employee)
+	repo.SaveTask(domain.Task{
+		ID:             "TASKCLOSE",
+		OrganizationID: "system",
+		Title:          "Уборка лифта",
+		AssigneeID:     employee.ID,
+		ManagerID:      manager.ID,
+		Status:         domain.TaskInProgress,
+	})
+	service := NewService(bot, repo, nil, slog.Default())
+	ctx := context.Background()
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: manager.MaxUserID, UserID: manager.MaxUserID, MessageID: "task-menu", Payload: "task:close:TASKCLOSE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: manager.MaxUserID, UserID: manager.MaxUserID, MessageID: "task-menu", Payload: "task:close_confirm:TASKCLOSE"}); err != nil {
+		t.Fatal(err)
+	}
+
+	closed, ok := repo.Task("TASKCLOSE")
+	if !ok || closed.Status != domain.TaskClosed {
+		t.Fatalf("task was not closed: %#v", closed)
+	}
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: employee.MaxUserID, UserID: employee.MaxUserID, MessageID: "employee-menu", Payload: "task:view:TASKCLOSE"}); err != nil {
+		t.Fatal(err)
+	}
+	last := bot.sent[len(bot.sent)-1]
+	if last.Text != "Задание не найдено или недоступно.\n\n🏠 Главное меню" {
+		t.Fatalf("closed task remains accessible to employee: %#v", last)
+	}
+}
+
+func TestAdminCanRemoveRoleButNotLastRole(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	target := domain.User{
+		ID:             "multi-role-user",
+		OrganizationID: "system",
+		MaxUserID:      42,
+		DisplayName:    "Иван",
+		Roles:          []domain.Role{domain.RoleEmployee, domain.RoleManager},
+		Status:         domain.UserActive,
+	}
+	repo.SaveUser(target)
+	service := NewService(bot, repo, nil, slog.Default())
+	ctx := context.Background()
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "roles-menu", Payload: "user:role_remove:42:manager"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ := repo.UserByMaxID(42)
+	if updated.HasRole(domain.RoleManager) || !updated.HasRole(domain.RoleEmployee) {
+		t.Fatalf("manager role was not removed correctly: %#v", updated.Roles)
+	}
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "roles-menu", Payload: "user:role_remove:42:employee"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ = repo.UserByMaxID(42)
+	if !updated.HasRole(domain.RoleEmployee) || len(updated.Roles) != 1 {
+		t.Fatalf("last role should not be removed: %#v", updated.Roles)
+	}
+}
+
 func TestCallbackRendersExistingMessage(t *testing.T) {
 	bot := &fakeBot{}
 	service := NewService(bot, NewMemoryRepository(1), nil, slog.Default())

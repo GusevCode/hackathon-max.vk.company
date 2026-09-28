@@ -9,6 +9,7 @@ const (
 	NotificationTaskAssigned  NotificationKind = "task.assigned"
 	NotificationTaskSubmitted NotificationKind = "task.submitted"
 	NotificationTaskReviewed  NotificationKind = "task.reviewed"
+	NotificationTaskClosed    NotificationKind = "task.closed"
 )
 
 // Notification is a user-facing message delivered asynchronously through the

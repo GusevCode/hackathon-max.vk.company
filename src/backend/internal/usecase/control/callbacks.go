@@ -38,6 +38,8 @@ func (s *Service) handleCallback(ctx context.Context, event domain.Event) error 
 		return s.assignManager(ctx, event, user, parts[2], parts[3])
 	case len(parts) == 4 && parts[0] == "user" && parts[1] == "role":
 		return s.addUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
+	case len(parts) == 4 && parts[0] == "user" && parts[1] == "role_remove":
+		return s.removeUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
 	case len(parts) == 3 && parts[0] == "task":
 		return s.handleTaskCallback(ctx, event, user, parts[1], parts[2])
 	case len(parts) == 3 && parts[0] == "wizard":
@@ -175,6 +177,16 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	case "rework":
 		s.setSession(event.UserID, Session{Kind: SessionReworkComment, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "🔁 Напишите, что именно нужно исправить:", nil)
+	case "close":
+		if !access.CanCloseTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав для закрытия задания.")
+		}
+		return s.send(ctx, event.ChatID, "🗄 Закрыть задание «"+task.Title+"»? Оно исчезнет из активных списков руководителя и исполнителя.", []domain.Button{
+			{Text: "✅ Закрыть", Payload: "task:close_confirm:" + task.ID, Row: 0},
+			{Text: "↩️ Отмена", Payload: "task:view:" + task.ID, Row: 1},
+		})
+	case "close_confirm":
+		return s.closeTask(ctx, event.ChatID, user, task)
 	default:
 		return s.taskCard(ctx, event, user, task)
 	}

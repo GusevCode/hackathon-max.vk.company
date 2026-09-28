@@ -60,14 +60,37 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 	if access.CanEditTask(user, task) {
 		buttons = append(buttons, domain.Button{Text: "✏️ Редактировать", Payload: "task:edit:" + task.ID, Row: 2})
 	}
+	if access.CanCloseTask(user, task) {
+		buttons = append(buttons, domain.Button{Text: "🗄 Закрыть задание", Payload: "task:close:" + task.ID, Row: 3})
+	}
 	if len(task.BeforePhotos) > 0 {
 		buttons = append(buttons, domain.Button{Text: "📷 Посмотреть фото до", Payload: "task:before_photos:" + task.ID, Row: 2})
 	}
 	if len(task.AfterPhotos) > 0 {
 		buttons = append(buttons, domain.Button{Text: "📸 Посмотреть фото", Payload: "task:photos:" + task.ID, Row: 2})
 	}
-	buttons = append(buttons, domain.Button{Text: "↩️ К заданиям", Payload: "menu:tasks", Row: 3})
+	buttons = append(buttons, domain.Button{Text: "↩️ К заданиям", Payload: "menu:tasks", Row: 4})
 	return s.send(ctx, event.ChatID, text, buttons)
+}
+
+func (s *Service) closeTask(ctx context.Context, chatID int64, user domain.User, task domain.Task) error {
+	if !access.CanCloseTask(user, task) {
+		return s.sendHome(ctx, chatID, user, "Это задание нельзя закрыть.")
+	}
+	task.Status = domain.TaskClosed
+	task.UpdatedAt = time.Now()
+	s.repo.SaveTask(task)
+	s.persistTask(ctx, task)
+
+	if employee, ok := s.userByID(task.OrganizationID, task.AssigneeID); ok {
+		message := fmt.Sprintf("🗄 Задание закрыто\n\n%s (%s)", task.Title, shortID(task.ID))
+		if err := s.notifyUser(ctx, employee.MaxUserID, domain.NotificationTaskClosed, task.ID, message, menuForUser(employee)); err != nil {
+			s.logger.Warn("notify employee about closed task", "error", err, "task_id", task.ID)
+		}
+	}
+
+	s.clearSession(user.MaxUserID)
+	return s.sendHome(ctx, chatID, user, "🗄 Задание закрыто и убрано из активных списков.")
 }
 
 func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task, photos []domain.Photo, label string) error {
@@ -219,6 +242,8 @@ func taskStatusIcon(status domain.TaskStatus) string {
 		return "🔁"
 	case domain.TaskUnable:
 		return "⚠️"
+	case domain.TaskClosed:
+		return "🗄"
 	default:
 		return "⚪"
 	}
@@ -238,6 +263,8 @@ func taskStatusName(status domain.TaskStatus) string {
 		return "Переделка"
 	case domain.TaskUnable:
 		return "Невозможно"
+	case domain.TaskClosed:
+		return "Закрыто"
 	default:
 		return "Неизвестно"
 	}

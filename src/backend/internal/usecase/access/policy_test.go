@@ -19,6 +19,7 @@ func TestRoleMatrix(t *testing.T) {
 		{"operator cannot invite operator", domain.RoleOperator, access.ActionInviteOperator, false},
 		{"manager creates task", domain.RoleManager, access.ActionCreateTask, true},
 		{"manager edits task", domain.RoleManager, access.ActionEditTask, true},
+		{"manager closes task", domain.RoleManager, access.ActionCloseTask, true},
 		{"manager manages objects", domain.RoleManager, access.ActionManageObjects, true},
 		{"manager manages work types", domain.RoleManager, access.ActionManageWorkType, true},
 		{"manager reviews own task capability", domain.RoleManager, access.ActionReviewTask, true},
@@ -32,5 +33,30 @@ func TestRoleMatrix(t *testing.T) {
 				t.Fatalf("Can(%s, %s) = %v, want %v", tc.role, tc.action, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCanCloseTask(t *testing.T) {
+	task := domain.Task{OrganizationID: "org", ManagerID: "manager", Status: domain.TaskInProgress}
+	manager := domain.User{ID: "manager", OrganizationID: "org", Roles: []domain.Role{domain.RoleManager}, Status: domain.UserActive}
+	otherManager := domain.User{ID: "other", OrganizationID: "org", Roles: []domain.Role{domain.RoleManager}, Status: domain.UserActive}
+	employee := domain.User{ID: "employee", OrganizationID: "org", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
+
+	if !access.CanCloseTask(manager, task) {
+		t.Fatal("assigned manager should be able to close task")
+	}
+	if access.CanCloseTask(otherManager, task) {
+		t.Fatal("another manager should not be able to close task")
+	}
+	if access.CanCloseTask(employee, task) {
+		t.Fatal("employee should not be able to close task")
+	}
+	operator := domain.User{ID: "operator", OrganizationID: "org", Roles: []domain.Role{domain.RoleOperator}, Status: domain.UserActive}
+	if access.CanCloseTask(operator, task) {
+		t.Fatal("operator should not be able to close task")
+	}
+	task.Status = domain.TaskClosed
+	if access.CanViewTask(manager, task) || access.CanViewTask(employee, task) {
+		t.Fatal("closed task should be hidden from active task views")
 	}
 }
