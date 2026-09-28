@@ -49,7 +49,7 @@ services:
       - "3301"
 
   minio:
-    image: ${MINIO_IMAGE:-minio/minio:latest}
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:latest}
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

@@ -117,6 +117,7 @@ jobs:
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
              export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
+             export MINIO_IMAGE='quay.io/minio/minio:latest'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io --username '${{ secrets.GHCR_USERNAME }}' --password-stdin; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
@@ -131,6 +132,7 @@ jobs:
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
              export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
+             export MINIO_IMAGE='quay.io/minio/minio:latest'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
              docker compose images bot caddy; \
