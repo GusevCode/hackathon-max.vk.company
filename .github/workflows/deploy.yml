@@ -22,6 +22,7 @@ env:
   # currently GusevCode, so keep the registry path normalized explicitly.
   IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-echo-bot
   FRONTEND_IMAGE: ghcr.io/gusevcode/max-hackathon-frontend
+  SEAWEEDFS_IMAGE: chrislusf/seaweedfs:4.47
 
 jobs:
   build-and-push:
@@ -117,11 +118,11 @@ jobs:
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
              export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
-             export MINIO_IMAGE='quay.io/minio/minio:latest'; \
+             export SEAWEEDFS_IMAGE='${{ env.SEAWEEDFS_IMAGE }}'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io --username '${{ secrets.GHCR_USERNAME }}' --password-stdin; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
-             docker compose --profile https pull bot caddy tarantool minio; \
+             docker compose --profile https pull bot caddy tarantool seaweedfs; \
              docker compose --profile https up -d --force-recreate --remove-orphans bot caddy; \
              docker image prune -f"
 
@@ -132,11 +133,11 @@ jobs:
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
              export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
-             export MINIO_IMAGE='quay.io/minio/minio:latest'; \
+             export SEAWEEDFS_IMAGE='${{ env.SEAWEEDFS_IMAGE }}'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
-             docker compose images bot caddy; \
-             docker compose logs --tail=30 bot; \
+             docker compose images bot caddy seaweedfs; \
+             docker compose logs --tail=30 bot seaweedfs; \
              docker compose exec -T bot wget -S -O- http://127.0.0.1:8080/api/version"
 
           expected='${{ steps.revision.outputs.sha }}'

@@ -9,7 +9,7 @@ import (
 func TestLoadRequiresWebhookConfiguration(t *testing.T) {
 	for _, name := range []string{
 		"APP_NAME", "MAX_BOT_TOKEN", "PUBLIC_BASE_URL", "MAX_WEBHOOK_SECRET",
-		"TARANTOOL_PASSWORD", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD",
+		"TARANTOOL_PASSWORD", "OBJECT_STORAGE_ACCESS_KEY", "OBJECT_STORAGE_SECRET_KEY",
 	} {
 		t.Setenv(name, "")
 	}
@@ -25,8 +25,8 @@ func TestLoad(t *testing.T) {
 	t.Setenv("PUBLIC_BASE_URL", "https://max.conspiracy-team.ru/")
 	t.Setenv("MAX_WEBHOOK_SECRET", "secret-123")
 	t.Setenv("TARANTOOL_PASSWORD", "tarantool-password")
-	t.Setenv("MINIO_ROOT_USER", "minio")
-	t.Setenv("MINIO_ROOT_PASSWORD", "minio-password")
+	t.Setenv("OBJECT_STORAGE_ACCESS_KEY", "seaweedfs")
+	t.Setenv("OBJECT_STORAGE_SECRET_KEY", "seaweedfs-password")
 
 	cfg, err := config.Load()
 	if err != nil {

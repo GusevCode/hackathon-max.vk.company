@@ -14,8 +14,10 @@ INITIAL_ADMIN_MAX_USER_ID=<MAX ID администратора>
 PUBLIC_BASE_URL=https://max.conspiracy-team.ru
 MAX_WEBHOOK_SECRET=<не короче 5 символов>
 TARANTOOL_PASSWORD=<пароль>
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=<длинный пароль>
+OBJECT_STORAGE_ACCESS_KEY=admin
+OBJECT_STORAGE_SECRET_KEY=<длинный пароль>
+OBJECT_STORAGE_ENDPOINT=seaweedfs:8333
+OBJECT_STORAGE_BUCKET=work-evidence
 ```
 
 Запуск выполняется обычным production-профилем:
@@ -26,7 +28,7 @@ docker compose logs -f bot
 ```
 
 В логе должны появиться `MAX bot connected`, `Tarantool connected`,
-`MinIO connected` и `control bot started`. Если MinIO или Tarantool ещё не
+`object storage connected` и `control bot started`. Если SeaweedFS или Tarantool ещё не
 успели запуститься, приложение продолжит работу с предупреждением и повторит
 подключение при следующем запуске.
 
@@ -66,7 +68,7 @@ inline-клавиатуру.
 curl -fsS https://max.conspiracy-team.ru/healthz
 curl -fsS https://max.conspiracy-team.ru/api/version
 docker compose ps
-docker compose logs --tail=100 bot tarantool minio caddy
+docker compose logs --tail=100 bot tarantool seaweedfs caddy
 ```
 
 Вебхук регистрируется автоматически при старте приложения как

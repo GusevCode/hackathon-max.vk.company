@@ -46,5 +46,5 @@ src/backend/
    бизнес-логики.
 
 Такой порядок позволяет тестировать сценарии через fake gateway без сети и
-без токена MAX. Webhook, Tarantool и MinIO подключаются в composition root и
+без токена MAX. Webhook, Tarantool и SeaweedFS подключаются в composition root и
 не переносят SDK-зависимости в use case.

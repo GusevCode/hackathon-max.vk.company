@@ -63,8 +63,8 @@ compose.yaml
 
 The bot uses Webhook transport. The `https` Compose profile publishes the React
 status page at `https://max.conspiracy-team.ru/`, proxies `/healthz`, `/webhook`
-and `/api/*` to Go, and runs Tarantool and MinIO for application data and photo
-evidence.
+and `/api/*` to Go, and runs Tarantool and SeaweedFS for application data and
+photo evidence.
 
 ## CI/CD direction
 

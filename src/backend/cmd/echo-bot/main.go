@@ -13,7 +13,7 @@ import (
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/config"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/httpserver"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/maxbot"
-	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/minio"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/objectstorage"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/tarantool"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/control"
 )
@@ -107,18 +107,18 @@ func main() {
 		loadCancel()
 	}
 	var photoStore control.PhotoStore
-	objectStore, objectStoreErr := minio.New(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioBucket)
+	objectStore, objectStoreErr := objectstorage.New(cfg.ObjectStorageEndpoint, cfg.ObjectStorageAccessKey, cfg.ObjectStorageSecretKey, cfg.ObjectStorageBucket)
 	if objectStoreErr != nil {
-		logger.Warn("MinIO unavailable, photo uploads disabled", "error", objectStoreErr)
+		logger.Warn("object storage unavailable, photo uploads disabled", "error", objectStoreErr)
 	} else {
 		bucketCtx, bucketCancel := context.WithTimeout(ctx, 15*time.Second)
 		bucketErr := objectStore.EnsureBucket(bucketCtx)
 		bucketCancel()
 		if bucketErr != nil {
-			logger.Warn("MinIO bucket is not ready, photo uploads disabled", "error", bucketErr)
+			logger.Warn("object storage bucket is not ready, photo uploads disabled", "error", bucketErr)
 		} else {
 			photoStore = objectStore
-			logger.Info("MinIO connected", "bucket", cfg.MinioBucket)
+			logger.Info("object storage connected", "endpoint", cfg.ObjectStorageEndpoint, "bucket", cfg.ObjectStorageBucket)
 		}
 	}
 	if runErr := control.NewService(bot, repository, photoStore, logger, storage).Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {

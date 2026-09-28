@@ -7,8 +7,8 @@ Backend написан на Go и использует чистую архите
 - `internal/infrastructure` — MAX SDK и HTTP-адаптеры.
 
 `cmd/echo-bot` является composition root: читает конфигурацию, создаёт MAX
-клиент, health server, Tarantool/MinIO и control use case. Use case не импортирует
+клиент, health server, Tarantool/SeaweedFS и control use case. Use case не импортирует
 MAX SDK и тестируется через fake gateway.
 
-Транспорт MAX — Webhook. Tarantool и MinIO подключаются как отдельные сервисы
+Транспорт MAX — Webhook. Tarantool и SeaweedFS подключаются как отдельные сервисы
 Docker Compose; начальная схема Tarantool находится в `infra/tarantool/init.lua`.

@@ -272,5 +272,5 @@ docker compose logs --tail=100 caddy
 # Примечание об актуальности
 
 Этот документ описывает первоначальный echo-бот и сохранён как историческая
-инструкция. Актуальная архитектура приложения, Webhook, Tarantool, MinIO,
+инструкция. Актуальная архитектура приложения, Webhook, Tarantool, SeaweedFS,
 роли и roadmap находятся в [PRODUCT_PASSPORT.md](PRODUCT_PASSPORT.md).
