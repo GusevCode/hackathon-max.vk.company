@@ -20,8 +20,10 @@ concurrency:
 env:
   # GHCR/Docker image references must be lowercase. The GitHub owner is
   # currently GusevCode, so keep the registry path normalized explicitly.
-  IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-echo-bot
+  IMAGE_NAME: ghcr.io/gusevcode/max-hackathon-bot
   FRONTEND_IMAGE: ghcr.io/gusevcode/max-hackathon-frontend
+  SEAWEEDFS_IMAGE: chrislusf/seaweedfs:4.47
+  NATS_IMAGE: nats:2.11-alpine
 
 jobs:
   build-and-push:
@@ -117,9 +119,32 @@ jobs:
             "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
              export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
              export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
+             export SEAWEEDFS_IMAGE='${{ env.SEAWEEDFS_IMAGE }}'; \
+             export NATS_IMAGE='${{ env.NATS_IMAGE }}'; \
              export COMPOSE_PROJECT_NAME='max-hackathon'; \
              echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io --username '${{ secrets.GHCR_USERNAME }}' --password-stdin; \
              cd '${{ secrets.VPS_APP_DIR }}'; \
-             docker compose --profile https pull bot caddy tarantool minio; \
-             docker compose --profile https up -d --remove-orphans bot caddy; \
+             docker compose --profile https pull bot caddy tarantool seaweedfs nats; \
+             docker compose --profile https up -d --force-recreate --remove-orphans tarantool seaweedfs nats bot caddy; \
              docker image prune -f"
+
+      - name: Verify deployed revision
+        shell: bash
+        run: |
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "export BOT_IMAGE='${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.sha }}'; \
+             export FRONTEND_IMAGE='${{ env.FRONTEND_IMAGE }}:${{ steps.revision.outputs.sha }}'; \
+             export APP_VERSION='${{ steps.revision.outputs.sha }}'; \
+             export SEAWEEDFS_IMAGE='${{ env.SEAWEEDFS_IMAGE }}'; \
+             export NATS_IMAGE='${{ env.NATS_IMAGE }}'; \
+             export COMPOSE_PROJECT_NAME='max-hackathon'; \
+             cd '${{ secrets.VPS_APP_DIR }}'; \
+             docker compose images bot caddy seaweedfs nats; \
+             docker compose logs --tail=30 bot seaweedfs nats; \
+             docker compose exec -T bot wget -S -O- http://127.0.0.1:8080/api/version"
+
+          expected='${{ steps.revision.outputs.sha }}'
+          actual="$(curl --fail --silent --show-error https://max.conspiracy-team.ru/api/version | jq -r '.version')"
+          echo "Expected revision: ${expected}"
+          echo "Running revision:  ${actual}"
+          test "${actual}" = "${expected}"

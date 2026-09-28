@@ -30,14 +30,21 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - `infra/caddy/Caddyfile` — HTTPS, статический frontend и reverse proxy `/api/*`.
 - `.golangci.yml` — конфигурация golangci-lint 2.x.
 - `.github/workflows/ci.yml` — проверки push/PR.
-- `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS.
+- `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS; при деплое перезапускается Tarantool для применения схемы.
 - `/healthz` — health endpoint backend на внутреннем порту `8080`.
 - `/webhook` — защищённый endpoint MAX Webhook на публичном HTTPS-домене.
 - `tarantool` — один экземпляр БД с начальной схемой из `infra/tarantool/init.lua`.
-- `minio` — локальное S3-совместимое хранилище фотографий.
+- `seaweedfs` — локальное S3-совместимое хранилище фотографий (`chrislusf/seaweedfs:4.47`).
+- `nats` — брокер событий для межмодульных уведомлений (`nats:2.11-alpine`,
+  JetStream включён, данные в volume `nats_data`).
 
 Бот получает события через Webhook. Для production обязательны DNS, HTTPS и
 `PUBLIC_BASE_URL`, указывающий на домен VPS.
+
+Перед первым запуском SeaweedFS в `.env` на VPS должны быть заданы
+`OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`,
+`OBJECT_STORAGE_ENDPOINT=seaweedfs:8333` и `OBJECT_STORAGE_BUCKET`.
+Брокер доступен приложению по `MESSAGE_BROKER_URL=nats://nats:4222`.
 
 ## Этапы
 
@@ -46,8 +53,8 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 1. Скопировать `.env.example` в `.env`.
 2. Заполнить `MAX_BOT_TOKEN`.
 3. Запустить `go test -race ./...` и `go vet ./...` из `src/backend`.
-4. Запустить `go run ./cmd/echo-bot` или `docker compose up --build bot`.
-5. Запустить Tarantool и MinIO через Docker Compose.
+4. Запустить `go run ./cmd/control-bot` или `docker compose up --build bot`.
+5. Запустить Tarantool и SeaweedFS через Docker Compose.
 6. Проверить регистрацию `/webhook` через MAX API и отправить боту тестовое сообщение.
 
 ### Этап 2. Первый VPS-деплой без домена
@@ -95,7 +102,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 | `GHCR_USERNAME` | пользователь/robot account для pull из GHCR |
 | `GHCR_READ_TOKEN` | token только с `read:packages` |
 
-`MAX_BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, пароли Tarantool и MinIO не нужны GitHub
+`MAX_BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, пароли Tarantool и SeaweedFS не нужны GitHub
 Actions: они остаются только в `.env` на VPS и локальной машине разработчика.
 
 ## Правила эксплуатации
@@ -105,7 +112,7 @@ Actions: они остаются только в `.env` на VPS и локаль
 - Не хранить `.env`, SSH-ключи и токены в GitHub artifacts.
 - Использовать immutable image tag по commit SHA; `latest` оставлять только как удобный alias.
 - После deploy проверять health endpoint и логи контейнера.
-- Настроить резервное копирование Tarantool и MinIO после появления данных.
+- Настроить резервное копирование Tarantool и SeaweedFS после появления данных.
 - Для production MAX использовать webhook и доверенный TLS-сертификат.
 
 ### TLS-сертификат MAX API

@@ -9,36 +9,38 @@ import (
 )
 
 type Config struct {
-	ApplicationVersion    string
-	ApplicationName       string
-	MaxBotToken           string
-	InitialAdminMaxUserID uint64
-	PublicBaseURL         string
-	MaxWebhookSecret      string
-	TarantoolAddress      string
-	TarantoolUser         string
-	TarantoolPassword     string
-	MinioEndpoint         string
-	MinioAccessKey        string
-	MinioSecretKey        string
-	MinioBucket           string
+	ApplicationVersion     string
+	ApplicationName        string
+	MaxBotToken            string
+	InitialAdminMaxUserID  uint64
+	PublicBaseURL          string
+	MaxWebhookSecret       string
+	TarantoolAddress       string
+	TarantoolUser          string
+	TarantoolPassword      string
+	ObjectStorageEndpoint  string
+	ObjectStorageAccessKey string
+	ObjectStorageSecretKey string
+	ObjectStorageBucket    string
+	MessageBrokerURL       string
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		ApplicationVersion:    envOrDefault("APP_VERSION", "dev"),
-		ApplicationName:       envOrDefault("APP_NAME", "\u0416\u041a\u0425 \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c"),
-		MaxBotToken:           os.Getenv("MAX_BOT_TOKEN"),
-		InitialAdminMaxUserID: 0,
-		PublicBaseURL:         strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
-		MaxWebhookSecret:      os.Getenv("MAX_WEBHOOK_SECRET"),
-		TarantoolAddress:      envOrDefault("TARANTOOL_ADDRESS", "tarantool:3301"),
-		TarantoolUser:         envOrDefault("TARANTOOL_USER", "app"),
-		TarantoolPassword:     os.Getenv("TARANTOOL_PASSWORD"),
-		MinioEndpoint:         envOrDefault("MINIO_ENDPOINT", "minio:9000"),
-		MinioAccessKey:        os.Getenv("MINIO_ROOT_USER"),
-		MinioSecretKey:        os.Getenv("MINIO_ROOT_PASSWORD"),
-		MinioBucket:           envOrDefault("MINIO_BUCKET", "work-evidence"),
+		ApplicationVersion:     envOrDefault("APP_VERSION", "dev"),
+		ApplicationName:        envOrDefault("APP_NAME", "\u0416\u041a\u0425 \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c"),
+		MaxBotToken:            os.Getenv("MAX_BOT_TOKEN"),
+		InitialAdminMaxUserID:  0,
+		PublicBaseURL:          strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
+		MaxWebhookSecret:       os.Getenv("MAX_WEBHOOK_SECRET"),
+		TarantoolAddress:       envOrDefault("TARANTOOL_ADDRESS", "tarantool:3301"),
+		TarantoolUser:          envOrDefault("TARANTOOL_USER", "app"),
+		TarantoolPassword:      os.Getenv("TARANTOOL_PASSWORD"),
+		ObjectStorageEndpoint:  envOrDefault("OBJECT_STORAGE_ENDPOINT", "seaweedfs:8333"),
+		ObjectStorageAccessKey: os.Getenv("OBJECT_STORAGE_ACCESS_KEY"),
+		ObjectStorageSecretKey: os.Getenv("OBJECT_STORAGE_SECRET_KEY"),
+		ObjectStorageBucket:    envOrDefault("OBJECT_STORAGE_BUCKET", "work-evidence"),
+		MessageBrokerURL:       envOrDefault("MESSAGE_BROKER_URL", "nats://nats:4222"),
 	}
 	if rawAdminID := os.Getenv("INITIAL_ADMIN_MAX_USER_ID"); rawAdminID != "" {
 		adminID, parseErr := strconv.ParseUint(rawAdminID, 10, 64)
@@ -67,8 +69,8 @@ func Load() (Config, error) {
 	if cfg.TarantoolPassword == "" {
 		return Config{}, fmt.Errorf("TARANTOOL_PASSWORD is required")
 	}
-	if cfg.MinioAccessKey == "" || cfg.MinioSecretKey == "" {
-		return Config{}, fmt.Errorf("MINIO_ROOT_USER and MINIO_ROOT_PASSWORD are required")
+	if cfg.ObjectStorageAccessKey == "" || cfg.ObjectStorageSecretKey == "" {
+		return Config{}, fmt.Errorf("OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required")
 	}
 
 	return cfg, nil

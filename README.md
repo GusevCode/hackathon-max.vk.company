@@ -7,7 +7,7 @@
 ```text
 src/
   backend/                 Go backend and MAX ЖКХ Контроль bot
-    cmd/echo-bot/          executable entrypoint
+    cmd/control-bot/       executable entrypoint
     internal/domain/        business entities
     internal/usecase/       application services and ports
     internal/infrastructure/ MAX and HTTP adapters
@@ -52,7 +52,7 @@ compose.yaml
 3. Run the bot directly:
 
    ```bash
-   go run ./cmd/echo-bot
+   go run ./cmd/control-bot
    ```
 
 4. Or run the bot through Docker:
@@ -63,8 +63,8 @@ compose.yaml
 
 The bot uses Webhook transport. The `https` Compose profile publishes the React
 status page at `https://max.conspiracy-team.ru/`, proxies `/healthz`, `/webhook`
-and `/api/*` to Go, and runs Tarantool and MinIO for application data and photo
-evidence.
+and `/api/*` to Go, and runs Tarantool and SeaweedFS for application data and
+photo evidence.
 
 ## CI/CD direction
 
@@ -82,7 +82,7 @@ See [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) for the development, CI/C
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the frontend FSD and
 backend clean architecture rules.
 
-See [`docs/DEPLOY_ECHO_BOT.md`](docs/DEPLOY_ECHO_BOT.md) for the complete first-deployment checklist.
+See [`docs/DEPLOY_BOT.md`](docs/DEPLOY_BOT.md) for the complete first-deployment checklist.
 
 See [`docs/MVP_TESTING.md`](docs/MVP_TESTING.md) for the role/task/photo workflow
 used to test stages 1–4.

@@ -35,7 +35,11 @@ func (c *Client) Users(ctx context.Context) ([]domain.User, error) {
 				roles = append(roles, domain.Role(role))
 			}
 		}
-		users = append(users, domain.User{ID: stringValue(row[0]), OrganizationID: stringValue(row[1]), MaxUserID: int64Value(row[2]), DisplayName: stringValue(row[3]), Roles: roles, Status: domain.UserStatus(stringValue(row[5])), CreatedAt: time.Unix(int64Value(row[6]), 0)})
+		managerID := ""
+		if len(row) > 7 && row[7] != nil {
+			managerID = stringValue(row[7])
+		}
+		users = append(users, domain.User{ID: stringValue(row[0]), OrganizationID: stringValue(row[1]), MaxUserID: int64Value(row[2]), DisplayName: stringValue(row[3]), Roles: roles, Status: domain.UserStatus(stringValue(row[5])), CreatedAt: time.Unix(int64Value(row[6]), 0), ManagerID: managerID})
 	}
 	return users, nil
 }
@@ -144,7 +148,10 @@ func (c *Client) SaveUser(ctx context.Context, user domain.User) error {
 	for i, role := range user.Roles {
 		roles[i] = string(role)
 	}
-	_, err := c.conn.Do(tnt.NewReplaceRequest("users").Tuple([]interface{}{user.ID, user.OrganizationID, user.MaxUserID, user.DisplayName, roles, string(user.Status), user.CreatedAt.Unix()}).Context(ctx)).Get()
+	if user.MaxUserID < 0 {
+		return fmt.Errorf("max user id must be non-negative")
+	}
+	_, err := c.conn.Do(tnt.NewReplaceRequest("users").Tuple([]interface{}{user.ID, user.OrganizationID, uint64(user.MaxUserID), user.DisplayName, roles, string(user.Status), user.CreatedAt.Unix(), user.ManagerID}).Context(ctx)).Get()
 	return err
 }
 
@@ -178,7 +185,10 @@ func (c *Client) SaveInvite(ctx context.Context, invite domain.Invite) error {
 	for i, role := range invite.Roles {
 		roles[i] = string(role)
 	}
-	_, err := c.conn.Do(tnt.NewReplaceRequest("invites").Tuple([]interface{}{invite.Code, invite.OrganizationID, roles, invite.ManagerID, invite.ExpiresAt.Unix(), invite.UsedBy}).Context(ctx)).Get()
+	if invite.UsedBy < 0 {
+		return fmt.Errorf("invite used-by id must be non-negative")
+	}
+	_, err := c.conn.Do(tnt.NewReplaceRequest("invites").Tuple([]interface{}{invite.Code, invite.OrganizationID, roles, invite.ManagerID, invite.ExpiresAt.Unix(), uint64(invite.UsedBy)}).Context(ctx)).Get()
 	return err
 }
 

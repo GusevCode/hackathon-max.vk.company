@@ -14,7 +14,7 @@ lint:
 check: fmt test lint
 
 build:
-	go -C $(BACKEND_DIR) build ./cmd/echo-bot
+	go -C $(BACKEND_DIR) build ./cmd/control-bot
 
 docker-up:
 	docker compose up --build bot

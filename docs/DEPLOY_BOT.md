@@ -1,4 +1,4 @@
-# Запуск echo-бота MAX: пошаговая инструкция
+# Запуск бота «ЖКХ Контроль» MAX: пошаговая инструкция
 
 Документ описывает первый рабочий контур:
 
@@ -60,7 +60,7 @@ chmod a+r /etc/apt/keyrings/docker.asc
 cat >/etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
-Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Suites: $(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
 Components: stable
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
@@ -197,7 +197,7 @@ ssh-keyscan -H bot.example.ru
 ```powershell
 git status
 git add .
-git commit -m "Prepare echo bot deployment"
+git commit -m "Prepare ЖКХ Контроль deployment"
 git push origin main
 ```
 
@@ -235,12 +235,12 @@ docker compose logs --tail=100 bot
 docker compose logs --tail=100 caddy
 ```
 
-## 11. Проверить echo в MAX
+## 11. Проверить бота в MAX
 
 Откройте чат с ботом и отправьте:
 
 ```text
-Привет, echo!
+Привет, ЖКХ Контроль!
 ```
 
 Бот должен ответить тем же текстом. Это Long Polling: HTTPS нужен для healthcheck и будущего развития, но не для доставки текущих сообщений.
@@ -257,11 +257,11 @@ docker compose logs --tail=100 caddy
 
 - не открывать наружу порт 8080;
 - не хранить токен в репозитории;
-- не добавлять базу данных для простого echo;
+- не добавлять базу данных до появления подтверждённого сценария хранения;
 - не писать frontend до решения о mini-app;
 - для первого demo оставить Long Polling, но перед полноценным production-запуском перейти на Webhook.
 
-После проверки echo можно добавлять команды и кнопки, затем принять решение о Webhook, БД и mini-app.
+После проверки можно развивать команды, роли, задания и фотоотчёты.
 
 ## Официальные ссылки
 
@@ -271,6 +271,6 @@ docker compose logs --tail=100 caddy
 - [Automatic HTTPS в Caddy](https://caddyserver.com/docs/automatic-https)
 # Примечание об актуальности
 
-Этот документ описывает первоначальный echo-бот и сохранён как историческая
-инструкция. Актуальная архитектура приложения, Webhook, Tarantool, MinIO,
+Этот документ описывает первоначальный запуск бота и сохранён как историческая
+инструкция. Актуальная архитектура приложения, Webhook, Tarantool, SeaweedFS,
 роли и roadmap находятся в [PRODUCT_PASSPORT.md](PRODUCT_PASSPORT.md).
