@@ -177,6 +177,8 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	case "rework":
 		s.setSession(event.UserID, Session{Kind: SessionReworkComment, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "🔁 Напишите, что именно нужно исправить:", nil)
+	case "reanalyze":
+		return s.reanalyzeTask(ctx, event, user, task)
 	case "close":
 		if !access.CanCloseTask(user, task) {
 			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав для закрытия задания.")

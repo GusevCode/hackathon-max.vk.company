@@ -132,3 +132,71 @@ box.once("users_manager_id_v1", function()
         users:format(format)
     end
 end)
+
+box.once("tasks_inspection_fields_v1", function()
+    local tasks = box.space.tasks
+    local format = tasks:format()
+    local fields = {
+        { name = "work_type_id", type = "string", is_nullable = true },
+        { name = "priority", type = "string", is_nullable = true },
+        { name = "comment", type = "string", is_nullable = true },
+        { name = "updated_at", type = "number", is_nullable = true },
+        { name = "submission_id", type = "string", is_nullable = true },
+    }
+    local existing = {}
+    for _, field in ipairs(format) do
+        existing[field.name] = true
+    end
+    for _, field in ipairs(fields) do
+        if not existing[field.name] then
+            table.insert(format, field)
+        end
+    end
+    tasks:format(format)
+end)
+
+box.once("evidence_analyses_v1", function()
+    local analyses = box.schema.space.create("evidence_analyses", { if_not_exists = true })
+    analyses:format({
+        { name = "id", type = "string" },
+        { name = "task_id", type = "string" },
+        { name = "submission_id", type = "string" },
+        { name = "status", type = "string" },
+        { name = "relevant", type = "boolean" },
+        { name = "quality", type = "string" },
+        { name = "observations", type = "array" },
+        { name = "missing_requirements", type = "array" },
+        { name = "comment_summary", type = "string" },
+        { name = "recommendation", type = "string" },
+        { name = "confidence", type = "number" },
+        { name = "questions", type = "array" },
+        { name = "model", type = "string" },
+        { name = "provider", type = "string" },
+        { name = "prompt_version", type = "string" },
+        { name = "input_hash", type = "string" },
+        { name = "prompt_tokens", type = "integer" },
+        { name = "completion_tokens", type = "integer" },
+        { name = "total_tokens", type = "integer" },
+        { name = "cost_rub", type = "number" },
+        { name = "error_code", type = "string" },
+        { name = "requested_at", type = "number" },
+        { name = "completed_at", type = "number" },
+    })
+    analyses:create_index("primary", { parts = { "id" }, if_not_exists = true })
+    analyses:create_index("task_id", { parts = { "task_id" }, unique = false, if_not_exists = true })
+end)
+
+box.once("evidence_submission_id_v1", function()
+    local evidence = box.space.evidence
+    local format = evidence:format()
+    local has_submission_id = false
+    for _, field in ipairs(format) do
+        if field.name == "submission_id" then
+            has_submission_id = true
+        end
+    end
+    if not has_submission_id then
+        table.insert(format, { name = "submission_id", type = "string", is_nullable = true })
+        evidence:format(format)
+    end
+end)

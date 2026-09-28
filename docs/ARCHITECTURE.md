@@ -34,10 +34,12 @@ src/backend/
     usecase/control/                    меню, wizard-сценарии и workflow
     usecase/access/                     централизованная ACL-политика
     usecase/notifications/              доставка уведомлений из событий
+    usecase/inspection/                 асинхронный анализ фотоотчётов
     infrastructure/maxbot/              адаптер MAX SDK
     infrastructure/messaging/            адаптер брокера NATS
     infrastructure/tarantool/           persistence Tarantool
     infrastructure/objectstorage/       SeaweedFS/S3-compatible storage
+    infrastructure/polza/               vision-адаптер Polza.ai
     infrastructure/httpserver/          HTTP health delivery
 ```
 
@@ -69,6 +71,8 @@ root и не переносят SDK-зависимости в use case.
 control -> NotificationPublisher -> NATS -> notifications -> BotGateway(MAX)
    |
    +-> Repository/PhotoStore/Storage
+   |
+   +-> InspectionPublisher -> NATS JetStream -> inspection -> Polza.ai
 ```
 
 Модуль `control` публикует события `task.assigned`, `task.submitted` и

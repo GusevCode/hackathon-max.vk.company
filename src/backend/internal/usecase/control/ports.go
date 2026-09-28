@@ -30,6 +30,10 @@ type Repository interface {
 	SaveTask(domain.Task)
 	Tasks(string) []domain.Task
 	SaveReview(domain.Review)
+	SaveEvidence(domain.Evidence)
+	Evidences(string) []domain.Evidence
+	SaveAnalysis(domain.EvidenceAnalysis)
+	Analysis(string) (domain.EvidenceAnalysis, bool)
 	ClearTasks(string) []string
 }
 
@@ -42,11 +46,16 @@ type NotificationPublisher interface {
 	Publish(context.Context, domain.Notification) error
 }
 
+type InspectionPublisher interface {
+	PublishInspection(context.Context, domain.InspectionRequested) error
+}
+
 type Storage interface {
 	SaveUser(context.Context, domain.User) error
 	SaveTask(context.Context, domain.Task) error
 	SaveEvidence(context.Context, domain.Evidence) error
 	SaveReview(context.Context, domain.Review) error
+	SaveAnalysis(context.Context, domain.EvidenceAnalysis) error
 	SaveObject(context.Context, domain.Object) error
 	SaveWorkType(context.Context, domain.WorkType) error
 	SaveInvite(context.Context, domain.Invite) error

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,20 @@ import (
 type fakeBot struct {
 	sent    []domain.OutgoingMessage
 	deleted []string
+}
+
+type fakePhotoStore struct{}
+
+func (fakePhotoStore) UploadURL(context.Context, string, string, string) error { return nil }
+func (fakePhotoStore) DeleteAllTaskPhotos(context.Context) error               { return nil }
+
+type fakeInspectionPublisher struct {
+	requests []domain.InspectionRequested
+}
+
+func (f *fakeInspectionPublisher) PublishInspection(_ context.Context, request domain.InspectionRequested) error {
+	f.requests = append(f.requests, request)
+	return nil
 }
 
 func (f *fakeBot) GetInfo(context.Context) (domain.BotInfo, error) {
@@ -139,6 +154,68 @@ func TestEmployeeTaskActionsAreMenuDriven(t *testing.T) {
 	if updated.Status != domain.TaskSubmitted {
 		t.Fatalf("task status = %s, want submitted", updated.Status)
 	}
+}
+
+func TestSubmittingPhotosRequestsPolzaAnalysis(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	employee := domain.User{ID: "employee", OrganizationID: "system", MaxUserID: 2, Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
+	repo.SaveUser(employee)
+	repo.SaveTask(domain.Task{
+		ID: "TASKAI", OrganizationID: "system", Title: "Уборка лифта", Description: "Помыть кабину",
+		AssigneeID: employee.ID, ManagerID: "initial-admin", Status: domain.TaskInProgress,
+	})
+	publisher := &fakeInspectionPublisher{}
+	service := NewService(bot, repo, fakePhotoStore{}, slog.Default())
+	service.SetInspectionPublisher(publisher, "v1")
+	err := service.submitPhotos(context.Background(), domain.Event{ChatID: 2, UserID: 2}, employee, mustTask(t, repo, "TASKAI"), []domain.Photo{{URL: "https://cdn.max.ru/after.jpg"}}, "Кабина очищена")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.requests) != 1 {
+		t.Fatalf("inspection requests = %d, want 1", len(publisher.requests))
+	}
+	request := publisher.requests[0]
+	if request.TaskID != "TASKAI" || request.SubmissionID == "" || len(request.Images) != 1 || request.Images[0].Kind != "after" {
+		t.Fatalf("unexpected inspection request: %#v", request)
+	}
+	analysis, ok := repo.Analysis("TASKAI")
+	if !ok || analysis.Status != domain.AnalysisPending || analysis.SubmissionID != request.SubmissionID {
+		t.Fatalf("pending analysis was not saved: %#v", analysis)
+	}
+}
+
+func TestManagerTaskCardShowsAnalysisAsRecommendation(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	task := domain.Task{
+		ID: "TASKCARD", OrganizationID: "system", Title: "Уборка лифта",
+		ManagerID: "initial-admin", Status: domain.TaskSubmitted, SubmissionID: "submission-1",
+	}
+	repo.SaveTask(task)
+	repo.SaveAnalysis(domain.EvidenceAnalysis{
+		ID: "analysis-1", TaskID: task.ID, SubmissionID: task.SubmissionID,
+		Status: domain.AnalysisSucceeded, Recommendation: domain.RecommendationApprove,
+		Confidence: 0.82, Observations: []string{"пол выглядит очищенным"},
+	})
+	service := NewService(bot, repo, nil, slog.Default())
+	manager, _ := repo.UserByMaxID(1)
+	if err := service.taskCard(context.Background(), domain.Event{ChatID: 1}, manager, task); err != nil {
+		t.Fatal(err)
+	}
+	message := bot.sent[len(bot.sent)-1].Text
+	if !strings.Contains(message, "РЕКОМЕНДАЦИЯ ИИ") || !strings.Contains(message, "Решение принимает руководитель") {
+		t.Fatalf("analysis disclaimer is missing from card: %q", message)
+	}
+}
+
+func mustTask(t *testing.T, repo *MemoryRepository, id string) domain.Task {
+	t.Helper()
+	task, ok := repo.Task(id)
+	if !ok {
+		t.Fatalf("task %q not found", id)
+	}
+	return task
 }
 
 func TestManagerCanViewBeforePhotos(t *testing.T) {

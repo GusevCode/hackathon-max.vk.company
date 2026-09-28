@@ -15,8 +15,10 @@ import (
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/maxbot"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/messaging"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/objectstorage"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/polza"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/tarantool"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/control"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/inspection"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/notifications"
 )
 
@@ -106,6 +108,20 @@ func main() {
 		} else {
 			logger.Warn("load work types from Tarantool", "error", loadErr)
 		}
+		if evidenceItems, loadErr := storage.Evidences(loadCtx); loadErr == nil {
+			for _, evidence := range evidenceItems {
+				repository.SaveEvidence(evidence)
+			}
+		} else {
+			logger.Warn("load evidence from Tarantool", "error", loadErr)
+		}
+		if analyses, loadErr := storage.Analyses(loadCtx); loadErr == nil {
+			for _, analysis := range analyses {
+				repository.SaveAnalysis(analysis)
+			}
+		} else {
+			logger.Warn("load evidence analyses from Tarantool", "error", loadErr)
+		}
 		loadCancel()
 	}
 	var photoStore control.PhotoStore
@@ -140,10 +156,46 @@ func main() {
 			}
 		}()
 	}
-	controlService := control.NewService(bot, repository, photoStore, logger, storage)
+	controlService := control.NewService(bot, repository, photoStore, logger)
+	if storage != nil {
+		controlService = control.NewService(bot, repository, photoStore, logger, storage)
+	}
 	controlService.SetInviteCodeTTL(cfg.InviteCodeTTL)
 	if messageBroker != nil {
 		controlService.SetNotificationPublisher(messageBroker)
+	}
+	if cfg.LLMEnabled {
+		if messageBroker == nil {
+			logger.Warn("Polza.ai analysis disabled because message broker is unavailable")
+		} else if objectStore == nil || photoStore == nil {
+			logger.Warn("Polza.ai analysis disabled because object storage is unavailable")
+		} else {
+			analyzer, analyzerErr := polza.New(polza.Config{
+				BaseURL: cfg.PolzaAIBaseURL, APIKey: cfg.PolzaAIAPIKey, Model: cfg.PolzaAIModel,
+				Timeout: cfg.PolzaAITimeout, MaxTokens: cfg.PolzaAIMaxTokens,
+				ImageDetail: cfg.PolzaAIImageDetail, AllowFallbacks: cfg.PolzaAIAllowFallbacks,
+				MaxPriceRUB: cfg.PolzaAIMaxPriceRUB, ProviderOnly: cfg.PolzaAIProviderOnly,
+			})
+			if analyzerErr != nil {
+				logger.Warn("Polza.ai analysis disabled", "error", analyzerErr)
+			} else {
+				inspectionConfig := inspection.Config{
+					Timeout: cfg.PolzaAITimeout, MaxImages: cfg.PolzaAIMaxImages,
+					MaxImageBytes: cfg.PolzaAIMaxImageBytes, PromptVersion: cfg.PolzaAIPromptVersion,
+				}
+				inspectionService := inspection.NewService(messageBroker, analyzer, objectStore, repository, logger, inspectionConfig)
+				if storage != nil {
+					inspectionService = inspection.NewService(messageBroker, analyzer, objectStore, repository, logger, inspectionConfig, storage)
+				}
+				go func() {
+					if inspectionErr := inspectionService.Run(ctx); inspectionErr != nil && !errors.Is(inspectionErr, context.Canceled) {
+						logger.Error("inspection module stopped", "error", inspectionErr)
+					}
+				}()
+				controlService.SetInspectionPublisher(messageBroker, cfg.PolzaAIPromptVersion)
+				logger.Info("Polza.ai evidence analysis enabled", "model", cfg.PolzaAIModel)
+			}
+		}
 	}
 	if runErr := controlService.Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
 		logger.Error("control bot stopped with error", "error", runErr)
