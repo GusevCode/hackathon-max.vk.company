@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
+
+const maxPhotoSize = int64(50 << 20)
 
 type Store struct {
 	client        *s3.Client
@@ -82,8 +85,31 @@ func (s *Store) UploadURL(ctx context.Context, key, sourceURL, _ string) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download photo from MAX: HTTP %s", resp.Status)
 	}
+	if resp.ContentLength > maxPhotoSize {
+		return fmt.Errorf("download photo from MAX: image is larger than 50 MiB")
+	}
 
-	if err := s.UploadReader(ctx, key, resp.Body, resp.ContentLength, resp.Header.Get("Content-Type")); err != nil {
+	photo, err := os.CreateTemp("", "max-photo-*")
+	if err != nil {
+		return fmt.Errorf("create temporary photo file: %w", err)
+	}
+	defer func() {
+		_ = photo.Close()
+		_ = os.Remove(photo.Name())
+	}()
+
+	size, err := io.Copy(photo, io.LimitReader(resp.Body, maxPhotoSize+1))
+	if err != nil {
+		return fmt.Errorf("buffer photo from MAX: %w", err)
+	}
+	if size > maxPhotoSize {
+		return fmt.Errorf("download photo from MAX: image is larger than 50 MiB")
+	}
+	if _, err := photo.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind temporary photo file: %w", err)
+	}
+
+	if err := s.UploadReader(ctx, key, photo, size, resp.Header.Get("Content-Type")); err != nil {
 		return fmt.Errorf("upload photo to object storage: %w", err)
 	}
 	return nil
