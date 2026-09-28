@@ -165,11 +165,12 @@ func main() {
 		controlService.SetNotificationPublisher(messageBroker)
 	}
 	if cfg.LLMEnabled {
-		if messageBroker == nil {
+		switch {
+		case messageBroker == nil:
 			logger.Warn("Polza.ai analysis disabled because message broker is unavailable")
-		} else if objectStore == nil || photoStore == nil {
+		case objectStore == nil || photoStore == nil:
 			logger.Warn("Polza.ai analysis disabled because object storage is unavailable")
-		} else {
+		default:
 			analyzer, analyzerErr := polza.New(polza.Config{
 				BaseURL: cfg.PolzaAIBaseURL, APIKey: cfg.PolzaAIAPIKey, Model: cfg.PolzaAIModel,
 				Timeout: cfg.PolzaAITimeout, MaxTokens: cfg.PolzaAIMaxTokens,

@@ -43,25 +43,25 @@ type Client struct {
 
 func New(config Config) (*Client, error) {
 	if strings.TrimSpace(config.BaseURL) == "" {
-		return nil, fmt.Errorf("Polza.ai base URL is empty")
+		return nil, fmt.Errorf("polza.ai base URL is empty")
 	}
 	if strings.TrimSpace(config.APIKey) == "" {
-		return nil, fmt.Errorf("Polza.ai API key is empty")
+		return nil, fmt.Errorf("polza.ai API key is empty")
 	}
 	if strings.TrimSpace(config.Model) == "" {
-		return nil, fmt.Errorf("Polza.ai model is empty")
+		return nil, fmt.Errorf("polza.ai model is empty")
 	}
 	if config.Timeout <= 0 {
-		return nil, fmt.Errorf("Polza.ai timeout must be positive")
+		return nil, fmt.Errorf("polza.ai timeout must be positive")
 	}
 	if config.MaxTokens <= 0 {
-		return nil, fmt.Errorf("Polza.ai max tokens must be positive")
+		return nil, fmt.Errorf("polza.ai max tokens must be positive")
 	}
 	if config.MaxPriceRUB <= 0 {
-		return nil, fmt.Errorf("Polza.ai max request price must be positive")
+		return nil, fmt.Errorf("polza.ai max request price must be positive")
 	}
 	if config.ImageDetail != "auto" && config.ImageDetail != "low" && config.ImageDetail != "high" {
-		return nil, fmt.Errorf("Polza.ai image detail must be auto, low or high")
+		return nil, fmt.Errorf("polza.ai image detail must be auto, low or high")
 	}
 	return &Client{
 		baseURL: strings.TrimRight(config.BaseURL, "/"), apiKey: config.APIKey, model: config.Model,
@@ -190,7 +190,7 @@ func (c *Client) Analyze(ctx context.Context, input inspection.EvidenceInput) (d
 		return domain.EvidenceAnalysis{}, &Error{code: "invalid_response", err: err}
 	}
 	if len(completion.Choices) == 0 || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
-		return domain.EvidenceAnalysis{}, &Error{code: "empty_response", err: fmt.Errorf("Polza.ai response has no choices")}
+		return domain.EvidenceAnalysis{}, &Error{code: "empty_response", err: fmt.Errorf("polza.ai response has no choices")}
 	}
 	var result analysisPayload
 	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &result); err != nil {
