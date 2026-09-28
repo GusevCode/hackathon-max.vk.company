@@ -41,8 +41,11 @@ func (s *Service) adminMenu(ctx context.Context, chatID int64, user domain.User)
 	buttons := []domain.Button{
 		{Text: "🎟 Пригласить пользователя", Payload: "admin:invite", Row: 0},
 		{Text: "👥 Пользователи", Payload: "admin:users", Row: 1},
-		{Text: "↩️ Главное меню", Payload: "menu:home", Row: 2},
 	}
+	if user.HasRole(domain.RoleAdmin) {
+		buttons = append(buttons, domain.Button{Text: "🧹 Очистить задания и фото", Payload: "admin:clear", Row: 2})
+	}
+	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)})
 	label := "⚙️ УПРАВЛЕНИЕ ОРГАНИЗАЦИЕЙ"
 	if access.Can(user, access.ActionManageRoles) {
 		label = "🛡 АДМИНИСТРИРОВАНИЕ"

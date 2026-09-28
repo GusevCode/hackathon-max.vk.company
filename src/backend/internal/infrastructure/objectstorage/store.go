@@ -14,6 +14,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 const maxPhotoSize = int64(50 << 20)
@@ -129,6 +130,35 @@ func (s *Store) UploadReader(ctx context.Context, key string, reader io.Reader, 
 	}
 	_, err := s.client.PutObject(ctx, input)
 	return err
+}
+
+func (s *Store) DeleteAllTaskPhotos(ctx context.Context) error {
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String("tasks/"),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list task photos: %w", err)
+		}
+		objects := make([]s3types.ObjectIdentifier, 0, len(page.Contents))
+		for _, object := range page.Contents {
+			if object.Key != nil {
+				objects = append(objects, s3types.ObjectIdentifier{Key: object.Key})
+			}
+		}
+		if len(objects) == 0 {
+			continue
+		}
+		if _, err := s.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: aws.String(s.bucket),
+			Delete: &s3types.Delete{Objects: objects, Quiet: aws.Bool(true)},
+		}); err != nil {
+			return fmt.Errorf("delete task photos: %w", err)
+		}
+	}
+	return nil
 }
 
 func normalizeEndpoint(endpoint string) string {

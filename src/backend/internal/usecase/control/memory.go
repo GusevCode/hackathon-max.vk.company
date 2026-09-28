@@ -136,3 +136,31 @@ func (r *MemoryRepository) SaveReview(v domain.Review) {
 	defer r.mu.Unlock()
 	r.reviews = append(r.reviews, v)
 }
+
+func (r *MemoryRepository) ClearTasks(organizationID string) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ids := make([]string, 0)
+	for id, task := range r.tasks {
+		if task.OrganizationID != organizationID {
+			continue
+		}
+		ids = append(ids, id)
+		delete(r.tasks, id)
+	}
+	keptReviews := r.reviews[:0]
+	for _, review := range r.reviews {
+		remove := false
+		for _, id := range ids {
+			if review.TaskID == id {
+				remove = true
+				break
+			}
+		}
+		if !remove {
+			keptReviews = append(keptReviews, review)
+		}
+	}
+	r.reviews = keptReviews
+	return ids
+}

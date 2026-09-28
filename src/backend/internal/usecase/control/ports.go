@@ -30,10 +30,12 @@ type Repository interface {
 	SaveTask(domain.Task)
 	Tasks(string) []domain.Task
 	SaveReview(domain.Review)
+	ClearTasks(string) []string
 }
 
 type PhotoStore interface {
 	UploadURL(context.Context, string, string, string) error
+	DeleteAllTaskPhotos(context.Context) error
 }
 
 type NotificationPublisher interface {
@@ -48,4 +50,5 @@ type Storage interface {
 	SaveObject(context.Context, domain.Object) error
 	SaveWorkType(context.Context, domain.WorkType) error
 	SaveInvite(context.Context, domain.Invite) error
+	ClearTasks(context.Context, string) error
 }

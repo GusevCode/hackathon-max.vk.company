@@ -192,6 +192,49 @@ func (c *Client) SaveInvite(ctx context.Context, invite domain.Invite) error {
 	return err
 }
 
+func (c *Client) ClearTasks(ctx context.Context, organizationID string) error {
+	tasks, err := c.Tasks(ctx)
+	if err != nil {
+		return fmt.Errorf("load tasks for cleanup: %w", err)
+	}
+	taskIDs := make(map[string]struct{})
+	for _, task := range tasks {
+		if task.OrganizationID != organizationID {
+			continue
+		}
+		taskIDs[task.ID] = struct{}{}
+		if _, err := c.conn.Do(tnt.NewDeleteRequest("tasks").Index("primary").Key([]interface{}{task.ID}).Context(ctx)).Get(); err != nil {
+			return fmt.Errorf("delete task %q: %w", task.ID, err)
+		}
+	}
+	if err := c.deleteTaskRows(ctx, "evidence", taskIDs, 1); err != nil {
+		return err
+	}
+	return c.deleteTaskRows(ctx, "task_reviews", taskIDs, 1)
+}
+
+func (c *Client) deleteTaskRows(ctx context.Context, space string, taskIDs map[string]struct{}, taskField int) error {
+	if len(taskIDs) == 0 {
+		return nil
+	}
+	var rows [][]interface{}
+	if err := c.conn.Do(tnt.NewSelectRequest(space).Index("primary").Iterator(tnt.IterAll).Context(ctx)).GetTyped(&rows); err != nil {
+		return fmt.Errorf("load %s for cleanup: %w", space, err)
+	}
+	for _, row := range rows {
+		if len(row) <= taskField {
+			continue
+		}
+		if _, ok := taskIDs[stringValue(row[taskField])]; !ok {
+			continue
+		}
+		if _, err := c.conn.Do(tnt.NewDeleteRequest(space).Index("primary").Key([]interface{}{row[0]}).Context(ctx)).Get(); err != nil {
+			return fmt.Errorf("delete %s row: %w", space, err)
+		}
+	}
+	return nil
+}
+
 func newCode() string { return fmt.Sprintf("review-%d", time.Now().UnixNano()) }
 
 func stringValue(value interface{}) string {

@@ -141,6 +141,7 @@ func main() {
 		}()
 	}
 	controlService := control.NewService(bot, repository, photoStore, logger, storage)
+	controlService.SetInviteCodeTTL(cfg.InviteCodeTTL)
 	if messageBroker != nil {
 		controlService.SetNotificationPublisher(messageBroker)
 	}

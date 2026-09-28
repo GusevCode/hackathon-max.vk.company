@@ -18,12 +18,16 @@ func (s *Service) listTasks(ctx context.Context, event domain.Event, user domain
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("• %s %s — %s", taskStatusIcon(task.Status), taskStatusName(task.Status), task.Title))
-		buttons = append(buttons, domain.Button{Text: taskStatusIcon(task.Status) + " " + shortID(task.ID), Payload: "task:view:" + task.ID, Row: len(buttons) / 2})
+		buttons = append(buttons, domain.Button{
+			Text:    fmt.Sprintf("%s %s (%s)", taskStatusIcon(task.Status), task.Title, shortID(task.ID)),
+			Payload: "task:view:" + task.ID,
+			Row:     len(buttons),
+		})
 	}
 	if len(buttons) == 0 {
 		lines = append(lines, "\nПока заданий нет.")
 	}
-	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)/2 + 1})
+	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)})
 	return s.send(ctx, event.ChatID, strings.Join(lines, "\n"), buttons)
 }
 
@@ -53,6 +57,12 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
 		)
 	}
+	if access.CanEditTask(user, task) {
+		buttons = append(buttons, domain.Button{Text: "✏️ Редактировать", Payload: "task:edit:" + task.ID, Row: 2})
+	}
+	if len(task.BeforePhotos) > 0 {
+		buttons = append(buttons, domain.Button{Text: "📷 Посмотреть фото до", Payload: "task:before_photos:" + task.ID, Row: 2})
+	}
 	if len(task.AfterPhotos) > 0 {
 		buttons = append(buttons, domain.Button{Text: "📸 Посмотреть фото", Payload: "task:photos:" + task.ID, Row: 2})
 	}
@@ -60,14 +70,14 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 	return s.send(ctx, event.ChatID, text, buttons)
 }
 
-func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task) error {
-	if len(task.AfterPhotos) == 0 {
-		return s.send(ctx, event.ChatID, "📸 Для этого задания пока нет фотографий.", nil)
+func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task, photos []domain.Photo, label string) error {
+	if len(photos) == 0 {
+		return s.send(ctx, event.ChatID, "📷 Для этого задания пока нет фотографий.", nil)
 	}
 	_, err := s.bot.Send(ctx, domain.OutgoingMessage{
 		ChatID: event.ChatID,
-		Text:   "📸 Фотоотчёт: " + task.Title,
-		Photos: task.AfterPhotos,
+		Text:   label + ": " + task.Title,
+		Photos: photos,
 		Buttons: []domain.Button{{
 			Text:    "↩️ К заданию",
 			Payload: "task:view:" + task.ID,
@@ -75,6 +85,18 @@ func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task d
 		}},
 	})
 	return err
+}
+
+func (s *Service) taskEditMenu(ctx context.Context, event domain.Event, user domain.User, task domain.Task) error {
+	if !access.CanEditTask(user, task) {
+		return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав для редактирования задания.")
+	}
+	return s.send(ctx, event.ChatID, "✏️ Что изменить в задании?", []domain.Button{
+		{Text: "📝 Название", Payload: "task:edit_title:" + task.ID, Row: 0},
+		{Text: "📄 Описание", Payload: "task:edit_description:" + task.ID, Row: 1},
+		{Text: "📅 Срок", Payload: "task:edit_due:" + task.ID, Row: 2},
+		{Text: "↩️ К заданию", Payload: "task:view:" + task.ID, Row: 3},
+	})
 }
 
 func (s *Service) takeTask(ctx context.Context, chatID int64, user domain.User, task domain.Task) error {

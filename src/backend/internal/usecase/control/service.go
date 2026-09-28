@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
 )
@@ -17,6 +18,7 @@ type Service struct {
 	storage       Storage
 	notifications NotificationPublisher
 	logger        *slog.Logger
+	inviteCodeTTL time.Duration
 
 	sessionsMu sync.Mutex
 	sessions   map[int64]Session
@@ -44,6 +46,13 @@ func NewService(bot BotGateway, repo Repository, photos PhotoStore, logger *slog
 	return &Service{
 		bot: bot, repo: repo, photos: photos, storage: storage, logger: logger,
 		sessions: make(map[int64]Session), targets: make(map[int64]renderTarget),
+		inviteCodeTTL: 24 * time.Hour,
+	}
+}
+
+func (s *Service) SetInviteCodeTTL(ttl time.Duration) {
+	if ttl > 0 {
+		s.inviteCodeTTL = ttl
 	}
 }
 

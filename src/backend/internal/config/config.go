@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -23,6 +24,7 @@ type Config struct {
 	ObjectStorageSecretKey string
 	ObjectStorageBucket    string
 	MessageBrokerURL       string
+	InviteCodeTTL          time.Duration
 }
 
 func Load() (Config, error) {
@@ -41,6 +43,14 @@ func Load() (Config, error) {
 		ObjectStorageSecretKey: os.Getenv("OBJECT_STORAGE_SECRET_KEY"),
 		ObjectStorageBucket:    envOrDefault("OBJECT_STORAGE_BUCKET", "work-evidence"),
 		MessageBrokerURL:       envOrDefault("MESSAGE_BROKER_URL", "nats://nats:4222"),
+		InviteCodeTTL:          24 * time.Hour,
+	}
+	if rawTTL := envOrDefault("INVITE_CODE_TTL", "24h"); rawTTL != "" {
+		ttl, parseErr := time.ParseDuration(rawTTL)
+		if parseErr != nil || ttl <= 0 {
+			return Config{}, fmt.Errorf("INVITE_CODE_TTL must be a positive duration, for example 24h")
+		}
+		cfg.InviteCodeTTL = ttl
 	}
 	if rawAdminID := os.Getenv("INITIAL_ADMIN_MAX_USER_ID"); rawAdminID != "" {
 		adminID, parseErr := strconv.ParseUint(rawAdminID, 10, 64)
