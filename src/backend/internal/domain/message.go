@@ -52,4 +52,5 @@ type OutgoingMessage struct {
 	MessageID string
 	Text      string
 	Buttons   []Button
+	Photos    []Photo
 }

@@ -24,8 +24,12 @@ func (s *Service) handleCallback(ctx context.Context, event domain.Event) error 
 		return s.handleMenuCallback(ctx, event, user, parts[1])
 	case len(parts) == 2 && parts[0] == "reference":
 		return s.handleReferenceCallback(ctx, event, user, parts[1])
+	case len(parts) == 3 && parts[0] == "reference":
+		return s.handleReferenceCallback(ctx, event, user, parts[1], parts[2])
 	case len(parts) == 2 && parts[0] == "admin":
 		return s.handleAdminCallback(ctx, event, user, parts[1])
+	case len(parts) == 3 && parts[0] == "admin" && parts[1] == "clear":
+		return s.handleClearCallback(ctx, event, user, parts[2])
 	case len(parts) == 3 && parts[0] == "admin" && parts[1] == "invite":
 		return s.createInvite(ctx, event, user, domain.Role(parts[2]))
 	case len(parts) == 3 && parts[0] == "user":
@@ -34,6 +38,8 @@ func (s *Service) handleCallback(ctx context.Context, event domain.Event) error 
 		return s.assignManager(ctx, event, user, parts[2], parts[3])
 	case len(parts) == 4 && parts[0] == "user" && parts[1] == "role":
 		return s.addUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
+	case len(parts) == 4 && parts[0] == "user" && parts[1] == "role_remove":
+		return s.removeUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
 	case len(parts) == 3 && parts[0] == "task":
 		return s.handleTaskCallback(ctx, event, user, parts[1], parts[2])
 	case len(parts) == 3 && parts[0] == "wizard":
@@ -84,6 +90,9 @@ func (s *Service) handleAdminCallback(ctx context.Context, event domain.Event, u
 	if target == "users" {
 		return s.listUsers(ctx, event, user)
 	}
+	if target == "clear" {
+		return s.handleClearCallback(ctx, event, user, "confirm")
+	}
 	return s.sendHome(ctx, event.ChatID, user, "Раздел управления не найден.")
 }
 
@@ -128,6 +137,26 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	switch action {
 	case "view":
 		return s.taskCard(ctx, event, user, task)
+	case "edit":
+		return s.taskEditMenu(ctx, event, user, task)
+	case "edit_title":
+		if !access.CanEditTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав.")
+		}
+		s.setSession(event.UserID, Session{Kind: SessionTaskEditTitle, TaskID: task.ID})
+		return s.send(ctx, event.ChatID, "📝 Введите новое название задания:", nil)
+	case "edit_description":
+		if !access.CanEditTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав.")
+		}
+		s.setSession(event.UserID, Session{Kind: SessionTaskEditDesc, TaskID: task.ID})
+		return s.send(ctx, event.ChatID, "📄 Введите новое описание задания:", nil)
+	case "edit_due":
+		if !access.CanEditTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав.")
+		}
+		s.setSession(event.UserID, Session{Kind: SessionTaskEditDueDate, TaskID: task.ID})
+		return s.send(ctx, event.ChatID, "📅 Введите новый срок в формате ДД.ММ.ГГГГ:", nil)
 	case "take":
 		return s.takeTask(ctx, event.ChatID, user, task)
 	case "before":
@@ -136,6 +165,10 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	case "submit":
 		s.setSession(event.UserID, Session{Kind: SessionPhotoAfter, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "📸 Прикрепите фотографию ПОСЛЕ выполнения работы:", nil)
+	case "photos":
+		return s.sendTaskPhotos(ctx, event, task, task.AfterPhotos, "📸 Фотоотчёт")
+	case "before_photos":
+		return s.sendTaskPhotos(ctx, event, task, task.BeforePhotos, "📷 Фото до начала работы")
 	case "unable":
 		s.setSession(event.UserID, Session{Kind: SessionUnableReason, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "Напишите причину, по которой задание невозможно выполнить:", nil)
@@ -144,6 +177,16 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 	case "rework":
 		s.setSession(event.UserID, Session{Kind: SessionReworkComment, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "🔁 Напишите, что именно нужно исправить:", nil)
+	case "close":
+		if !access.CanCloseTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав для закрытия задания.")
+		}
+		return s.send(ctx, event.ChatID, "🗄 Закрыть задание «"+task.Title+"»? Оно исчезнет из активных списков руководителя и исполнителя.", []domain.Button{
+			{Text: "✅ Закрыть", Payload: "task:close_confirm:" + task.ID, Row: 0},
+			{Text: "↩️ Отмена", Payload: "task:view:" + task.ID, Row: 1},
+		})
+	case "close_confirm":
+		return s.closeTask(ctx, event.ChatID, user, task)
 	default:
 		return s.taskCard(ctx, event, user, task)
 	}

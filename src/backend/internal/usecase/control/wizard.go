@@ -41,6 +41,25 @@ func (s *Service) handleSessionInput(ctx context.Context, event domain.Event, us
 		session.Draft.DueAt = due.Format("02.01.2006")
 		s.setSession(event.UserID, session)
 		return s.chooseObject(ctx, event, user, session)
+	case SessionTaskEditTitle:
+		return s.updateTaskText(ctx, event, user, session, text, true)
+	case SessionTaskEditDesc:
+		return s.updateTaskText(ctx, event, user, session, text, false)
+	case SessionTaskEditDueDate:
+		task, ok := s.repo.Task(session.TaskID)
+		if !ok || !access.CanEditTask(user, task) {
+			return s.sendHome(ctx, event.ChatID, user, "Задание больше недоступно для редактирования.")
+		}
+		due, err := time.Parse("02.01.2006", text)
+		if err != nil || due.Before(time.Now().AddDate(0, 0, -1)) {
+			return s.send(ctx, event.ChatID, "Введите будущую дату в формате ДД.ММ.ГГГГ, например 25.10.2026.", nil)
+		}
+		task.DueAt = due
+		task.UpdatedAt = time.Now()
+		s.repo.SaveTask(task)
+		s.persistTask(ctx, task)
+		s.clearSession(event.UserID)
+		return s.sendHome(ctx, event.ChatID, user, "✅ Срок задания изменён.")
 	case SessionObjectName:
 		if !access.Can(user, access.ActionManageObjects) {
 			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав.")
@@ -57,6 +76,19 @@ func (s *Service) handleSessionInput(ctx context.Context, event domain.Event, us
 			return s.send(ctx, event.ChatID, "Адрес не должен быть пустым.", nil)
 		}
 		return s.saveObject(ctx, event, user, session.ObjectName, text)
+	case SessionObjectEditName:
+		if text == "" {
+			return s.send(ctx, event.ChatID, "Введите название объекта.", nil)
+		}
+		session.ObjectName = text
+		session.Kind = SessionObjectEditAddress
+		s.setSession(event.UserID, session)
+		return s.send(ctx, event.ChatID, "Укажите новый адрес объекта:", nil)
+	case SessionObjectEditAddress:
+		if text == "" {
+			return s.send(ctx, event.ChatID, "Адрес не должен быть пустым.", nil)
+		}
+		return s.updateObject(ctx, event, user, session, text)
 	case SessionWorkTypeName:
 		if !access.Can(user, access.ActionManageWorkType) {
 			return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав.")
@@ -65,6 +97,11 @@ func (s *Service) handleSessionInput(ctx context.Context, event domain.Event, us
 			return s.send(ctx, event.ChatID, "Введите название вида работы.", nil)
 		}
 		return s.saveWorkType(ctx, event, user, text)
+	case SessionWorkTypeEditName:
+		if text == "" {
+			return s.send(ctx, event.ChatID, "Введите название вида работы.", nil)
+		}
+		return s.updateWorkType(ctx, event, user, session, text)
 	case SessionPhotoBefore:
 		task, ok := s.repo.Task(session.TaskID)
 		if !ok {
@@ -107,6 +144,26 @@ func (s *Service) handleSessionInput(ctx context.Context, event domain.Event, us
 	default:
 		return s.sendHome(ctx, event.ChatID, user, "Сценарий не найден.")
 	}
+}
+
+func (s *Service) updateTaskText(ctx context.Context, event domain.Event, user domain.User, session Session, text string, title bool) error {
+	if text == "" {
+		return s.send(ctx, event.ChatID, "Значение не должно быть пустым.", nil)
+	}
+	task, ok := s.repo.Task(session.TaskID)
+	if !ok || !access.CanEditTask(user, task) {
+		return s.sendHome(ctx, event.ChatID, user, "Задание больше недоступно для редактирования.")
+	}
+	if title {
+		task.Title = text
+	} else {
+		task.Description = text
+	}
+	task.UpdatedAt = time.Now()
+	s.repo.SaveTask(task)
+	s.persistTask(ctx, task)
+	s.clearSession(event.UserID)
+	return s.sendHome(ctx, event.ChatID, user, "✅ Задание изменено.")
 }
 
 func (s *Service) chooseEmployee(ctx context.Context, event domain.Event, user domain.User, session Session) error {

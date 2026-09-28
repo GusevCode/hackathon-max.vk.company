@@ -18,12 +18,16 @@ func (s *Service) listTasks(ctx context.Context, event domain.Event, user domain
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("• %s %s — %s", taskStatusIcon(task.Status), taskStatusName(task.Status), task.Title))
-		buttons = append(buttons, domain.Button{Text: taskStatusIcon(task.Status) + " " + shortID(task.ID), Payload: "task:view:" + task.ID, Row: len(buttons) / 2})
+		buttons = append(buttons, domain.Button{
+			Text:    fmt.Sprintf("%s %s (%s)", taskStatusIcon(task.Status), task.Title, shortID(task.ID)),
+			Payload: "task:view:" + task.ID,
+			Row:     len(buttons),
+		})
 	}
 	if len(buttons) == 0 {
 		lines = append(lines, "\nПока заданий нет.")
 	}
-	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)/2 + 1})
+	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)})
 	return s.send(ctx, event.ChatID, strings.Join(lines, "\n"), buttons)
 }
 
@@ -53,8 +57,69 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
 		)
 	}
-	buttons = append(buttons, domain.Button{Text: "↩️ К заданиям", Payload: "menu:tasks", Row: 3})
+	if access.CanEditTask(user, task) {
+		buttons = append(buttons, domain.Button{Text: "✏️ Редактировать", Payload: "task:edit:" + task.ID, Row: 2})
+	}
+	if access.CanCloseTask(user, task) {
+		buttons = append(buttons, domain.Button{Text: "🗄 Закрыть задание", Payload: "task:close:" + task.ID, Row: 3})
+	}
+	if len(task.BeforePhotos) > 0 {
+		buttons = append(buttons, domain.Button{Text: "📷 Посмотреть фото до", Payload: "task:before_photos:" + task.ID, Row: 2})
+	}
+	if len(task.AfterPhotos) > 0 {
+		buttons = append(buttons, domain.Button{Text: "📸 Посмотреть фото", Payload: "task:photos:" + task.ID, Row: 2})
+	}
+	buttons = append(buttons, domain.Button{Text: "↩️ К заданиям", Payload: "menu:tasks", Row: 4})
 	return s.send(ctx, event.ChatID, text, buttons)
+}
+
+func (s *Service) closeTask(ctx context.Context, chatID int64, user domain.User, task domain.Task) error {
+	if !access.CanCloseTask(user, task) {
+		return s.sendHome(ctx, chatID, user, "Это задание нельзя закрыть.")
+	}
+	task.Status = domain.TaskClosed
+	task.UpdatedAt = time.Now()
+	s.repo.SaveTask(task)
+	s.persistTask(ctx, task)
+
+	if employee, ok := s.userByID(task.OrganizationID, task.AssigneeID); ok {
+		message := fmt.Sprintf("🗄 Задание закрыто\n\n%s (%s)", task.Title, shortID(task.ID))
+		if err := s.notifyUser(ctx, employee.MaxUserID, domain.NotificationTaskClosed, task.ID, message, menuForUser(employee)); err != nil {
+			s.logger.Warn("notify employee about closed task", "error", err, "task_id", task.ID)
+		}
+	}
+
+	s.clearSession(user.MaxUserID)
+	return s.sendHome(ctx, chatID, user, "🗄 Задание закрыто и убрано из активных списков.")
+}
+
+func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task, photos []domain.Photo, label string) error {
+	if len(photos) == 0 {
+		return s.send(ctx, event.ChatID, "📷 Для этого задания пока нет фотографий.", nil)
+	}
+	_, err := s.bot.Send(ctx, domain.OutgoingMessage{
+		ChatID: event.ChatID,
+		Text:   label + ": " + task.Title,
+		Photos: photos,
+		Buttons: []domain.Button{{
+			Text:    "↩️ К заданию",
+			Payload: "task:view:" + task.ID,
+			Row:     0,
+		}},
+	})
+	return err
+}
+
+func (s *Service) taskEditMenu(ctx context.Context, event domain.Event, user domain.User, task domain.Task) error {
+	if !access.CanEditTask(user, task) {
+		return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав для редактирования задания.")
+	}
+	return s.send(ctx, event.ChatID, "✏️ Что изменить в задании?", []domain.Button{
+		{Text: "📝 Название", Payload: "task:edit_title:" + task.ID, Row: 0},
+		{Text: "📄 Описание", Payload: "task:edit_description:" + task.ID, Row: 1},
+		{Text: "📅 Срок", Payload: "task:edit_due:" + task.ID, Row: 2},
+		{Text: "↩️ К заданию", Payload: "task:view:" + task.ID, Row: 3},
+	})
 }
 
 func (s *Service) takeTask(ctx context.Context, chatID int64, user domain.User, task domain.Task) error {
@@ -124,8 +189,7 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 	s.persistTask(ctx, task)
 	s.clearSession(event.UserID)
 	if manager, ok := s.userByID(task.OrganizationID, task.ManagerID); ok {
-		buttons := []domain.Button{{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0}, {Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0}}
-		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), buttons); err != nil {
+		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), menuForUser(manager), task.AfterPhotos); err != nil {
 			s.logger.Warn("notify manager", "error", err, "task_id", task.ID)
 		}
 	}
@@ -178,6 +242,8 @@ func taskStatusIcon(status domain.TaskStatus) string {
 		return "🔁"
 	case domain.TaskUnable:
 		return "⚠️"
+	case domain.TaskClosed:
+		return "🗄"
 	default:
 		return "⚪"
 	}
@@ -197,6 +263,8 @@ func taskStatusName(status domain.TaskStatus) string {
 		return "Переделка"
 	case domain.TaskUnable:
 		return "Невозможно"
+	case domain.TaskClosed:
+		return "Закрыто"
 	default:
 		return "Неизвестно"
 	}

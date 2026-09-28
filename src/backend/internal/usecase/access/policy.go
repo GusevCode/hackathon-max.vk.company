@@ -15,6 +15,8 @@ const (
 	ActionManageObjects  Action = "manage_objects"
 	ActionManageWorkType Action = "manage_work_types"
 	ActionCreateTask     Action = "create_task"
+	ActionEditTask       Action = "edit_task"
+	ActionCloseTask      Action = "close_task"
 	ActionViewAllTasks   Action = "view_all_tasks"
 	ActionReviewTask     Action = "review_task"
 	ActionExecuteTask    Action = "execute_task"
@@ -31,13 +33,16 @@ func Can(user domain.User, action Action) bool {
 	}
 	switch action {
 	case ActionInviteEmployee, ActionInviteManager, ActionManageUsers,
-		ActionAssignManager, ActionManageObjects, ActionManageWorkType,
-		ActionViewAllTasks:
+		ActionAssignManager, ActionViewAllTasks:
 		return user.HasRole(domain.RoleOperator)
+	case ActionManageObjects, ActionManageWorkType:
+		return user.HasRole(domain.RoleOperator) || user.HasRole(domain.RoleManager)
 	case ActionViewUsers:
 		return user.HasRole(domain.RoleOperator) || user.HasRole(domain.RoleManager)
-	case ActionCreateTask:
+	case ActionCreateTask, ActionEditTask:
 		return user.HasRole(domain.RoleOperator) || user.HasRole(domain.RoleManager)
+	case ActionCloseTask:
+		return user.HasRole(domain.RoleManager)
 	case ActionReviewTask:
 		return user.HasRole(domain.RoleOperator) || user.HasRole(domain.RoleManager)
 	case ActionExecuteTask:
@@ -70,10 +75,24 @@ func CanReviewTask(user domain.User, task domain.Task) bool {
 }
 
 func CanViewTask(user domain.User, task domain.Task) bool {
-	if user.OrganizationID != task.OrganizationID || !user.IsActive() {
+	if user.OrganizationID != task.OrganizationID || !user.IsActive() || task.Status == domain.TaskClosed {
 		return false
 	}
 	return user.HasRole(domain.RoleAdmin) || user.HasRole(domain.RoleOperator) || task.ManagerID == user.ID || task.AssigneeID == user.ID
+}
+
+func CanCloseTask(user domain.User, task domain.Task) bool {
+	if !Can(user, ActionCloseTask) || user.OrganizationID != task.OrganizationID || task.Status == domain.TaskClosed {
+		return false
+	}
+	return user.HasRole(domain.RoleAdmin) || (user.HasRole(domain.RoleManager) && task.ManagerID == user.ID)
+}
+
+func CanEditTask(user domain.User, task domain.Task) bool {
+	if !Can(user, ActionEditTask) || user.OrganizationID != task.OrganizationID {
+		return false
+	}
+	return user.HasRole(domain.RoleAdmin) || user.HasRole(domain.RoleOperator) || task.ManagerID == user.ID
 }
 
 func CanManageUser(actor, target domain.User) bool {

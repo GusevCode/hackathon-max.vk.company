@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
 )
@@ -17,6 +18,7 @@ type Service struct {
 	storage       Storage
 	notifications NotificationPublisher
 	logger        *slog.Logger
+	inviteCodeTTL time.Duration
 
 	sessionsMu sync.Mutex
 	sessions   map[int64]Session
@@ -44,6 +46,13 @@ func NewService(bot BotGateway, repo Repository, photos PhotoStore, logger *slog
 	return &Service{
 		bot: bot, repo: repo, photos: photos, storage: storage, logger: logger,
 		sessions: make(map[int64]Session), targets: make(map[int64]renderTarget),
+		inviteCodeTTL: 24 * time.Hour,
+	}
+}
+
+func (s *Service) SetInviteCodeTTL(ttl time.Duration) {
+	if ttl > 0 {
+		s.inviteCodeTTL = ttl
 	}
 }
 
@@ -165,19 +174,36 @@ func (s *Service) send(ctx context.Context, chat int64, text string, buttons []d
 	return err
 }
 
-func (s *Service) sendUser(ctx context.Context, userID int64, text string, buttons []domain.Button) error {
-	_, err := s.bot.Send(ctx, domain.OutgoingMessage{UserID: userID, Text: text, Buttons: buttons})
+func (s *Service) sendNotification(ctx context.Context, userID int64, text string, menu []domain.Button, photos []domain.Photo) error {
+	message := domain.OutgoingMessage{UserID: userID, Text: text, Photos: photos}
+	if _, err := s.bot.Send(ctx, message); err != nil {
+		if len(photos) == 0 {
+			return err
+		}
+		message.Photos = nil
+		if _, fallbackErr := s.bot.Send(ctx, message); fallbackErr != nil {
+			return fmt.Errorf("send notification: %w; fallback: %v", err, fallbackErr)
+		}
+	}
+	if len(menu) == 0 {
+		return nil
+	}
+	_, err := s.bot.Send(ctx, domain.OutgoingMessage{UserID: userID, Text: "🏠 Главное меню", Buttons: menu})
 	return err
 }
 
-func (s *Service) notifyUser(ctx context.Context, userID int64, kind domain.NotificationKind, taskID, text string, buttons []domain.Button) error {
-	if s.notifications == nil {
-		return s.sendUser(ctx, userID, text, buttons)
+func (s *Service) notifyUser(ctx context.Context, userID int64, kind domain.NotificationKind, taskID, text string, menu []domain.Button, photos ...[]domain.Photo) error {
+	var attachments []domain.Photo
+	if len(photos) > 0 {
+		attachments = photos[0]
 	}
-	notification := domain.Notification{ID: newCode(), Kind: kind, RecipientUserID: userID, TaskID: taskID, Text: text, Buttons: buttons}
+	if s.notifications == nil {
+		return s.sendNotification(ctx, userID, text, menu, attachments)
+	}
+	notification := domain.Notification{ID: newCode(), Kind: kind, RecipientUserID: userID, TaskID: taskID, Text: text, Buttons: menu, Photos: attachments}
 	if err := s.notifications.Publish(ctx, notification); err != nil {
 		s.logger.Warn("publish notification, using direct delivery", "error", err, "notification_id", notification.ID, "kind", kind, "user_id", userID)
-		return s.sendUser(ctx, userID, text, buttons)
+		return s.sendNotification(ctx, userID, text, menu, attachments)
 	}
 	return nil
 }

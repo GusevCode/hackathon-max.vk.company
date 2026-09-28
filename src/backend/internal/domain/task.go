@@ -12,6 +12,7 @@ const (
 	TaskAccepted   TaskStatus = "accepted"
 	TaskRework     TaskStatus = "rework"
 	TaskUnable     TaskStatus = "unable"
+	TaskClosed     TaskStatus = "closed"
 )
 
 type Priority string

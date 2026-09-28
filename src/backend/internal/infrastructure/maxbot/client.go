@@ -3,8 +3,11 @@ package maxbot
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
 	maxapi "github.com/max-messenger/max-bot-api-client-go"
@@ -12,8 +15,11 @@ import (
 )
 
 type Client struct {
-	api     *maxapi.Api
-	updates chan schemes.UpdateInterface
+	api       *maxapi.Api
+	token     string
+	updates   chan schemes.UpdateInterface
+	menusMu   sync.Mutex
+	menusByID map[int64]string
 }
 
 func New(token string) (*Client, error) {
@@ -21,7 +27,7 @@ func New(token string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create MAX client: %w", err)
 	}
-	return &Client{api: api, updates: make(chan schemes.UpdateInterface, 100)}, nil
+	return &Client{api: api, token: token, updates: make(chan schemes.UpdateInterface, 100), menusByID: make(map[int64]string)}, nil
 }
 
 func (c *Client) GetInfo(ctx context.Context) (domain.BotInfo, error) {
@@ -126,26 +132,28 @@ func (c *Client) SendMessage(ctx context.Context, message domain.Message) error 
 
 func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) (string, error) {
 	msg := maxapi.NewMessage().SetText(message.Text)
+	recipientID := message.UserID
+	if recipientID == 0 {
+		recipientID = message.ChatID
+	}
 	if message.UserID != 0 {
 		msg.SetUser(message.UserID)
 	} else {
 		msg.SetChat(message.ChatID)
 	}
-	if len(message.Buttons) > 0 {
-		keyboard := c.api.Messages.NewKeyboardBuilder()
-		rows := make(map[int]*maxapi.KeyboardRow)
-		for _, button := range message.Buttons {
-			row, ok := rows[button.Row]
-			if !ok {
-				row = keyboard.AddRow()
-				rows[button.Row] = row
-			}
-			row.AddCallback(button.Text, schemes.DEFAULT, button.Payload)
-		}
-		msg.AddKeyboard(keyboard)
-	}
+	c.addKeyboard(msg, message.Buttons)
 	if message.MessageID != "" {
-		return message.MessageID, c.api.Messages.EditMessage(ctx, message.MessageID, msg)
+		err := c.api.Messages.EditMessage(ctx, message.MessageID, msg)
+		if err == nil && len(message.Buttons) > 0 {
+			c.rememberMenu(recipientID, message.MessageID)
+		}
+		return message.MessageID, err
+	}
+	if len(message.Buttons) > 0 {
+		c.deletePreviousMenu(ctx, recipientID)
+	}
+	if err := c.addPhotos(ctx, msg, message.Photos); err != nil {
+		return "", err
 	}
 	result, err := c.api.Messages.SendWithResult(ctx, msg)
 	if err != nil {
@@ -154,7 +162,119 @@ func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) (stri
 	if result == nil {
 		return "", fmt.Errorf("MAX returned an empty message")
 	}
+	if len(message.Buttons) > 0 {
+		c.rememberMenu(recipientID, result.Body.Mid)
+	}
 	return result.Body.Mid, nil
+}
+
+func (c *Client) deletePreviousMenu(ctx context.Context, recipientID int64) {
+	previousID := c.menuID(recipientID)
+	if previousID == "" {
+		return
+	}
+	if _, err := c.api.Messages.DeleteMessage(ctx, previousID); err != nil {
+		// A menu may already have been removed by the control service. The new
+		// menu should still be delivered, so deletion errors are intentionally
+		// ignored here.
+		return
+	}
+	c.forgetMenu(recipientID, previousID)
+}
+
+func (c *Client) menuID(recipientID int64) string {
+	c.menusMu.Lock()
+	defer c.menusMu.Unlock()
+	return c.menusByID[recipientID]
+}
+
+func (c *Client) rememberMenu(recipientID int64, messageID string) {
+	if recipientID == 0 || messageID == "" {
+		return
+	}
+	c.menusMu.Lock()
+	defer c.menusMu.Unlock()
+	c.menusByID[recipientID] = messageID
+}
+
+func (c *Client) forgetMenu(recipientID int64, messageID string) {
+	c.menusMu.Lock()
+	defer c.menusMu.Unlock()
+	if c.menusByID[recipientID] == messageID {
+		delete(c.menusByID, recipientID)
+	}
+}
+
+func (c *Client) addKeyboard(msg *maxapi.Message, buttons []domain.Button) {
+	if len(buttons) == 0 {
+		return
+	}
+	keyboard := c.api.Messages.NewKeyboardBuilder()
+	rows := make(map[int]*maxapi.KeyboardRow)
+	for _, button := range buttons {
+		row, ok := rows[button.Row]
+		if !ok {
+			row = keyboard.AddRow()
+			rows[button.Row] = row
+		}
+		row.AddCallback(button.Text, schemes.DEFAULT, button.Payload)
+	}
+	msg.AddKeyboard(keyboard)
+}
+
+func (c *Client) addPhotos(ctx context.Context, msg *maxapi.Message, photos []domain.Photo) error {
+	for _, photo := range photos {
+		body, err := c.downloadPhoto(ctx, photo)
+		if err != nil {
+			return err
+		}
+		tokens, uploadErr := c.api.Uploads.UploadPhotoFromReader(ctx, body)
+		_ = body.Close()
+		if uploadErr != nil {
+			return fmt.Errorf("upload photo to MAX: %w", uploadErr)
+		}
+		msg.AddPhoto(tokens)
+	}
+	return nil
+}
+
+func (c *Client) downloadPhoto(ctx context.Context, photo domain.Photo) (io.ReadCloser, error) {
+	if strings.TrimSpace(photo.URL) == "" {
+		return nil, fmt.Errorf("download photo from MAX: URL is empty")
+	}
+	parsedURL, err := url.Parse(photo.URL)
+	if err != nil {
+		return nil, fmt.Errorf("parse photo URL: %w", err)
+	}
+	if !isTrustedMAXHost(parsedURL.Hostname()) {
+		return nil, fmt.Errorf("download photo from MAX: untrusted host %q", parsedURL.Hostname())
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, photo.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create photo request: %w", err)
+	}
+	if c.token != "" {
+		request.Header.Set("Authorization", c.token)
+	}
+	response, err := (&http.Client{}).Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("download photo from MAX: %w", err)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		_ = response.Body.Close()
+		return nil, fmt.Errorf("download photo from MAX: HTTP %s", response.Status)
+	}
+	return response.Body, nil
+}
+
+func isTrustedMAXHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	for _, suffix := range []string{"max.ru", "oneme.ru", "okcdn.ru"} {
+		if host == suffix || strings.HasSuffix(host, "."+suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) DeleteMessage(ctx context.Context, messageID string) error {
@@ -162,7 +282,20 @@ func (c *Client) DeleteMessage(ctx context.Context, messageID string) error {
 		return nil
 	}
 	_, err := c.api.Messages.DeleteMessage(ctx, messageID)
+	if err == nil {
+		c.forgetMenuByMessageID(messageID)
+	}
 	return err
+}
+
+func (c *Client) forgetMenuByMessageID(messageID string) {
+	c.menusMu.Lock()
+	defer c.menusMu.Unlock()
+	for recipientID, currentID := range c.menusByID {
+		if currentID == messageID {
+			delete(c.menusByID, recipientID)
+		}
+	}
 }
 
 func (c *Client) AnswerCallback(ctx context.Context, callbackID, notification string) error {

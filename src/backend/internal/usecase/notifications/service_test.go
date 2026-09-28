@@ -35,15 +35,23 @@ func TestRunDeliversNotificationToUser(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- service.Run(ctx) }()
-	subscriber.events <- domain.Notification{ID: "N1", RecipientUserID: 42, Text: "Новое задание", Buttons: []domain.Button{{Text: "Открыть", Payload: "task:view:T1"}}}
+	subscriber.events <- domain.Notification{ID: "N1", RecipientUserID: 42, Text: "Новое задание", Buttons: []domain.Button{{Text: "Открыть", Payload: "task:view:T1"}}, Photos: []domain.Photo{{URL: "https://cdn.max.ru/photo.jpg"}}}
 
 	select {
 	case message := <-sender.messages:
-		if message.UserID != 42 || message.Text != "Новое задание" {
+		if message.UserID != 42 || message.Text != "Новое задание" || len(message.Buttons) != 0 || len(message.Photos) != 1 {
 			t.Fatalf("unexpected outgoing message: %#v", message)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("notification was not delivered")
+	}
+	select {
+	case message := <-sender.messages:
+		if message.Text != "🏠 Главное меню" || len(message.Buttons) == 0 {
+			t.Fatalf("menu was not refreshed separately: %#v", message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("menu was not refreshed")
 	}
 	cancel()
 }

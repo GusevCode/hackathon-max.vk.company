@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/config"
 )
@@ -27,6 +28,7 @@ func TestLoad(t *testing.T) {
 	t.Setenv("TARANTOOL_PASSWORD", "tarantool-password")
 	t.Setenv("OBJECT_STORAGE_ACCESS_KEY", "seaweedfs")
 	t.Setenv("OBJECT_STORAGE_SECRET_KEY", "seaweedfs-password")
+	t.Setenv("INVITE_CODE_TTL", "72h")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -37,5 +39,8 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.ApplicationName != "\u0416\u041a\u0425 \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c" {
 		t.Fatalf("ApplicationName = %q, want default", cfg.ApplicationName)
+	}
+	if cfg.InviteCodeTTL != 72*time.Hour {
+		t.Fatalf("InviteCodeTTL = %s, want 72h", cfg.InviteCodeTTL)
 	}
 }

@@ -9,6 +9,7 @@ const (
 	NotificationTaskAssigned  NotificationKind = "task.assigned"
 	NotificationTaskSubmitted NotificationKind = "task.submitted"
 	NotificationTaskReviewed  NotificationKind = "task.reviewed"
+	NotificationTaskClosed    NotificationKind = "task.closed"
 )
 
 // Notification is a user-facing message delivered asynchronously through the
@@ -19,5 +20,8 @@ type Notification struct {
 	RecipientUserID int64
 	TaskID          string
 	Text            string
-	Buttons         []Button
+	// Buttons are rendered in a separate message as the refreshed menu. They
+	// are intentionally not attached to the notification text itself.
+	Buttons []Button
+	Photos  []Photo
 }

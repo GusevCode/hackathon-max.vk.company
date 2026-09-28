@@ -78,7 +78,7 @@ func (s *Service) userCard(ctx context.Context, event domain.Event, actor, targe
 			buttons = append([]domain.Button{{Text: "🧑‍💼 Назначить руководителя", Payload: "user:assign:" + fmt.Sprint(target.MaxUserID), Row: 1}}, buttons...)
 		}
 		if access.Can(actor, access.ActionManageRoles) {
-			buttons = append([]domain.Button{{Text: "🔐 Добавить роль", Payload: "user:roles:" + fmt.Sprint(target.MaxUserID), Row: 1}}, buttons...)
+			buttons = append([]domain.Button{{Text: "🔐 Управление ролями", Payload: "user:roles:" + fmt.Sprint(target.MaxUserID), Row: 1}}, buttons...)
 		}
 	}
 	return s.send(ctx, event.ChatID, text, buttons)
@@ -91,12 +91,47 @@ func (s *Service) roleChoices(ctx context.Context, event domain.Event, actor, ta
 	roles := []domain.Role{domain.RoleOperator, domain.RoleManager, domain.RoleEmployee}
 	buttons := make([]domain.Button, 0, len(roles)+1)
 	for _, role := range roles {
-		if !target.HasRole(role) {
-			buttons = append(buttons, domain.Button{Text: "➕ " + role.Label(), Payload: "user:role:" + fmt.Sprint(target.MaxUserID) + ":" + string(role), Row: len(buttons) / 2})
+		if target.HasRole(role) {
+			buttons = append(buttons, domain.Button{Text: "➖ Убрать: " + role.Label(), Payload: "user:role_remove:" + fmt.Sprint(target.MaxUserID) + ":" + string(role), Row: len(buttons)})
+		} else {
+			buttons = append(buttons, domain.Button{Text: "➕ Добавить: " + role.Label(), Payload: "user:role:" + fmt.Sprint(target.MaxUserID) + ":" + string(role), Row: len(buttons)})
 		}
 	}
-	buttons = append(buttons, domain.Button{Text: "↩️ Назад", Payload: "user:view:" + fmt.Sprint(target.MaxUserID), Row: len(buttons)/2 + 1})
-	return s.send(ctx, event.ChatID, "Выберите роль для добавления:", buttons)
+	buttons = append(buttons, domain.Button{Text: "↩️ Назад", Payload: "user:view:" + fmt.Sprint(target.MaxUserID), Row: len(buttons)})
+	return s.send(ctx, event.ChatID, "🔐 Управление ролями\n\n➕ добавляет роль, ➖ убирает роль. У пользователя должна остаться хотя бы одна роль.", buttons)
+}
+
+func (s *Service) removeUserRole(ctx context.Context, event domain.Event, actor domain.User, rawID string, role domain.Role) error {
+	if !access.Can(actor, access.ActionManageRoles) || !role.Valid() || role == domain.RoleAdmin {
+		return s.sendHome(ctx, event.ChatID, actor, "Недостаточно прав.")
+	}
+	targetID, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil {
+		return s.sendHome(ctx, event.ChatID, actor, "Пользователь не найден.")
+	}
+	target, ok := s.repo.UserByMaxID(targetID)
+	if !ok || target.OrganizationID != actor.OrganizationID {
+		return s.sendHome(ctx, event.ChatID, actor, "Пользователь не найден.")
+	}
+	if !target.HasRole(role) {
+		return s.roleChoices(ctx, event, actor, target)
+	}
+	if len(target.Roles) == 1 {
+		return s.send(ctx, event.ChatID, "Нельзя убрать последнюю роль пользователя. Сначала добавьте ему другую роль.", []domain.Button{{
+			Text: "↩️ К ролям", Payload: "user:roles:" + fmt.Sprint(target.MaxUserID), Row: 0,
+		}})
+	}
+
+	roles := make([]domain.Role, 0, len(target.Roles)-1)
+	for _, assignedRole := range target.Roles {
+		if assignedRole != role {
+			roles = append(roles, assignedRole)
+		}
+	}
+	target.Roles = roles
+	s.repo.SaveUser(target)
+	s.persistUser(ctx, target)
+	return s.roleChoices(ctx, event, actor, target)
 }
 
 func (s *Service) addUserRole(ctx context.Context, event domain.Event, actor domain.User, rawID string, role domain.Role) error {
