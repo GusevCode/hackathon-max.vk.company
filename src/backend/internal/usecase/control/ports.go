@@ -9,7 +9,8 @@ import (
 type BotGateway interface {
 	GetInfo(context.Context) (domain.BotInfo, error)
 	Events(context.Context) <-chan domain.Event
-	Send(context.Context, domain.OutgoingMessage) error
+	Send(context.Context, domain.OutgoingMessage) (string, error)
+	DeleteMessage(context.Context, string) error
 	AnswerCallback(context.Context, string, string) error
 }
 

@@ -28,6 +28,7 @@ func (s *Service) SetNotificationPublisher(publisher NotificationPublisher) {
 }
 
 type renderTargetContextKey struct{}
+type replaceRenderTargetContextKey struct{}
 
 type renderTarget struct {
 	chatID    int64
@@ -69,6 +70,9 @@ func (s *Service) handle(ctx context.Context, event domain.Event) error {
 	}
 	if target, ok := s.renderTarget(event.UserID); ok && target.chatID == event.ChatID {
 		ctx = context.WithValue(ctx, renderTargetContextKey{}, target)
+		if event.Kind == domain.EventMessage {
+			ctx = context.WithValue(ctx, replaceRenderTargetContextKey{}, true)
+		}
 	}
 	if event.Kind == domain.EventCallback {
 		_ = s.bot.AnswerCallback(ctx, event.CallbackID, "Обрабатываю")
@@ -138,19 +142,32 @@ func (s *Service) clearSession(userID int64) {
 
 func (s *Service) send(ctx context.Context, chat int64, text string, buttons []domain.Button) error {
 	outgoing := domain.OutgoingMessage{ChatID: chat, Text: text, Buttons: buttons}
-	if target, ok := ctx.Value(renderTargetContextKey{}).(renderTarget); ok && target.chatID == chat {
+	target, hasTarget := ctx.Value(renderTargetContextKey{}).(renderTarget)
+	replaceTarget, _ := ctx.Value(replaceRenderTargetContextKey{}).(bool)
+	if hasTarget && target.chatID == chat {
 		if len(outgoing.Buttons) == 0 {
 			if user, exists := s.repo.UserByMaxID(target.userID); exists {
 				outgoing.Buttons = menuForUser(user)
 			}
 		}
-		outgoing.MessageID = target.messageID
+		if replaceTarget {
+			if err := s.bot.DeleteMessage(ctx, target.messageID); err != nil {
+				s.logger.Warn("delete previous menu message", "error", err, "message_id", target.messageID)
+			}
+		} else {
+			outgoing.MessageID = target.messageID
+		}
 	}
-	return s.bot.Send(ctx, outgoing)
+	messageID, err := s.bot.Send(ctx, outgoing)
+	if err == nil && replaceTarget && messageID != "" {
+		s.setRenderTarget(target.userID, renderTarget{chatID: chat, messageID: messageID, userID: target.userID})
+	}
+	return err
 }
 
 func (s *Service) sendUser(ctx context.Context, userID int64, text string, buttons []domain.Button) error {
-	return s.bot.Send(ctx, domain.OutgoingMessage{UserID: userID, Text: text, Buttons: buttons})
+	_, err := s.bot.Send(ctx, domain.OutgoingMessage{UserID: userID, Text: text, Buttons: buttons})
+	return err
 }
 
 func (s *Service) notifyUser(ctx context.Context, userID int64, kind domain.NotificationKind, taskID, text string, buttons []domain.Button) error {

@@ -15,5 +15,5 @@ type Subscriber interface {
 }
 
 type Sender interface {
-	Send(context.Context, domain.OutgoingMessage) error
+	Send(context.Context, domain.OutgoingMessage) (string, error)
 }

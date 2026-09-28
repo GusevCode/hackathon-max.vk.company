@@ -124,7 +124,7 @@ func (c *Client) SendMessage(ctx context.Context, message domain.Message) error 
 	return c.api.Messages.Send(ctx, maxapi.NewMessage().SetChat(message.ChatID).SetText(message.Text))
 }
 
-func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) error {
+func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) (string, error) {
 	msg := maxapi.NewMessage().SetText(message.Text)
 	if message.UserID != 0 {
 		msg.SetUser(message.UserID)
@@ -145,9 +145,24 @@ func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) error
 		msg.AddKeyboard(keyboard)
 	}
 	if message.MessageID != "" {
-		return c.api.Messages.EditMessage(ctx, message.MessageID, msg)
+		return message.MessageID, c.api.Messages.EditMessage(ctx, message.MessageID, msg)
 	}
-	return c.api.Messages.Send(ctx, msg)
+	result, err := c.api.Messages.SendWithResult(ctx, msg)
+	if err != nil {
+		return "", err
+	}
+	if result == nil {
+		return "", fmt.Errorf("MAX returned an empty message")
+	}
+	return result.Body.Mid, nil
+}
+
+func (c *Client) DeleteMessage(ctx context.Context, messageID string) error {
+	if messageID == "" {
+		return nil
+	}
+	_, err := c.api.Messages.DeleteMessage(ctx, messageID)
+	return err
 }
 
 func (c *Client) AnswerCallback(ctx context.Context, callbackID, notification string) error {

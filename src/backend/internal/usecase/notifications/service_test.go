@@ -21,9 +21,9 @@ type fakeSender struct {
 	messages chan domain.OutgoingMessage
 }
 
-func (f *fakeSender) Send(_ context.Context, message domain.OutgoingMessage) error {
+func (f *fakeSender) Send(_ context.Context, message domain.OutgoingMessage) (string, error) {
 	f.messages <- message
-	return nil
+	return "message-1", nil
 }
 
 func TestRunDeliversNotificationToUser(t *testing.T) {

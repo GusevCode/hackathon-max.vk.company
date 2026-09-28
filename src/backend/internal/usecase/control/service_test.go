@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -9,14 +10,24 @@ import (
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
 )
 
-type fakeBot struct{ sent []domain.OutgoingMessage }
+type fakeBot struct {
+	sent    []domain.OutgoingMessage
+	deleted []string
+}
 
 func (f *fakeBot) GetInfo(context.Context) (domain.BotInfo, error) {
 	return domain.BotInfo{Username: "control_bot"}, nil
 }
 func (f *fakeBot) Events(context.Context) <-chan domain.Event { return make(chan domain.Event) }
-func (f *fakeBot) Send(_ context.Context, message domain.OutgoingMessage) error {
+func (f *fakeBot) Send(_ context.Context, message domain.OutgoingMessage) (string, error) {
 	f.sent = append(f.sent, message)
+	if message.MessageID != "" {
+		return message.MessageID, nil
+	}
+	return fmt.Sprintf("sent-%d", len(f.sent)), nil
+}
+func (f *fakeBot) DeleteMessage(_ context.Context, messageID string) error {
+	f.deleted = append(f.deleted, messageID)
 	return nil
 }
 func (f *fakeBot) AnswerCallback(context.Context, string, string) error { return nil }
@@ -143,7 +154,7 @@ func TestCallbackRendersExistingMessage(t *testing.T) {
 	}
 }
 
-func TestTextStepRendersIntoLastMenuMessage(t *testing.T) {
+func TestTextStepReplacesLastMenuMessage(t *testing.T) {
 	bot := &fakeBot{}
 	service := NewService(bot, NewMemoryRepository(1), nil, slog.Default())
 	ctx := context.Background()
@@ -154,8 +165,11 @@ func TestTextStepRendersIntoLastMenuMessage(t *testing.T) {
 	if err := service.handle(ctx, domain.Event{Kind: domain.EventMessage, ChatID: 1, UserID: 1, Text: "текстовый шаг"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(bot.sent) != 2 || bot.sent[1].MessageID != "menu-1" {
-		t.Fatalf("text step should edit the last menu message: %#v", bot.sent)
+	if len(bot.sent) != 2 || bot.sent[1].MessageID != "" {
+		t.Fatalf("text step should send a new menu message: %#v", bot.sent)
+	}
+	if len(bot.deleted) != 1 || bot.deleted[0] != "menu-1" {
+		t.Fatalf("text step should delete the previous menu message: %#v", bot.deleted)
 	}
 }
 

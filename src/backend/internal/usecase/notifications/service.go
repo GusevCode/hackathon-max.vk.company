@@ -30,7 +30,7 @@ func (s *Service) Run(ctx context.Context) error {
 			s.logger.Warn("skip notification without recipient", "notification_id", notification.ID)
 			continue
 		}
-		err := s.sender.Send(ctx, domain.OutgoingMessage{
+		_, err := s.sender.Send(ctx, domain.OutgoingMessage{
 			UserID:  notification.RecipientUserID,
 			Text:    notification.Text,
 			Buttons: notification.Buttons,
