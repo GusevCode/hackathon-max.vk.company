@@ -16,5 +16,7 @@ Control use case разделён по ответственностям: `menus.
 виды работ, а `access/` содержит единую ACL-политику. Ни один пользовательский
 сценарий не требует ручного ввода команды.
 
-Транспорт MAX — Webhook. Tarantool и SeaweedFS подключаются как отдельные сервисы
-Docker Compose; начальная схема Tarantool находится в `infra/tarantool/init.lua`.
+Транспорт MAX — Webhook. Tarantool, SeaweedFS и NATS подключаются как отдельные
+сервисы Docker Compose; начальная схема Tarantool находится в
+`infra/tarantool/init.lua`. Backend является модульным монолитом: control-модуль
+публикует события заданий, а notifications-модуль доставляет их через NATS.

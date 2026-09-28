@@ -95,7 +95,7 @@ func (s *Service) reviewTask(ctx context.Context, chatID int64, user domain.User
 		if decision == "rework" {
 			message = "🔁 Работа отправлена на переделку.\nЧто исправить: " + task.Comment
 		}
-		if err := s.send(ctx, employee.MaxUserID, message, menuForUser(employee)); err != nil {
+		if err := s.notifyUser(ctx, employee.MaxUserID, domain.NotificationTaskReviewed, task.ID, message, menuForUser(employee)); err != nil {
 			s.logger.Warn("notify employee", "error", err, "task_id", task.ID)
 		}
 	}
@@ -113,6 +113,7 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 	task.AfterPhotos = append(task.AfterPhotos, photos...)
 	if s.photos != nil {
 		if err := s.persistPhotos(ctx, task.ID, "after", photos); err != nil {
+			s.logger.Warn("upload after photos", "error", err, "task_id", task.ID, "photos", len(photos))
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}
 	}
@@ -124,7 +125,7 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 	s.clearSession(event.UserID)
 	if manager, ok := s.userByID(task.OrganizationID, task.ManagerID); ok {
 		buttons := []domain.Button{{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0}, {Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0}}
-		if err := s.send(ctx, manager.MaxUserID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), buttons); err != nil {
+		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), buttons); err != nil {
 			s.logger.Warn("notify manager", "error", err, "task_id", task.ID)
 		}
 	}
@@ -138,6 +139,7 @@ func (s *Service) attachBefore(ctx context.Context, event domain.Event, user dom
 	task.BeforePhotos = append(task.BeforePhotos, photos...)
 	if s.photos != nil {
 		if err := s.persistPhotos(ctx, task.ID, "before", photos); err != nil {
+			s.logger.Warn("upload before photos", "error", err, "task_id", task.ID, "photos", len(photos))
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}
 	}

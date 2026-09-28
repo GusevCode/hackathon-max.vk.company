@@ -35,6 +35,8 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - `/webhook` — защищённый endpoint MAX Webhook на публичном HTTPS-домене.
 - `tarantool` — один экземпляр БД с начальной схемой из `infra/tarantool/init.lua`.
 - `seaweedfs` — локальное S3-совместимое хранилище фотографий (`chrislusf/seaweedfs:4.47`).
+- `nats` — брокер событий для межмодульных уведомлений (`nats:2.11-alpine`,
+  JetStream включён, данные в volume `nats_data`).
 
 Бот получает события через Webhook. Для production обязательны DNS, HTTPS и
 `PUBLIC_BASE_URL`, указывающий на домен VPS.
@@ -42,6 +44,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 Перед первым запуском SeaweedFS в `.env` на VPS должны быть заданы
 `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`,
 `OBJECT_STORAGE_ENDPOINT=seaweedfs:8333` и `OBJECT_STORAGE_BUCKET`.
+Брокер доступен приложению по `MESSAGE_BROKER_URL=nats://nats:4222`.
 
 ## Этапы
 

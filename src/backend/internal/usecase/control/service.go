@@ -11,14 +11,20 @@ import (
 )
 
 type Service struct {
-	bot     BotGateway
-	repo    Repository
-	photos  PhotoStore
-	storage Storage
-	logger  *slog.Logger
+	bot           BotGateway
+	repo          Repository
+	photos        PhotoStore
+	storage       Storage
+	notifications NotificationPublisher
+	logger        *slog.Logger
 
 	sessionsMu sync.Mutex
 	sessions   map[int64]Session
+	targets    map[int64]renderTarget
+}
+
+func (s *Service) SetNotificationPublisher(publisher NotificationPublisher) {
+	s.notifications = publisher
 }
 
 type renderTargetContextKey struct{}
@@ -36,7 +42,7 @@ func NewService(bot BotGateway, repo Repository, photos PhotoStore, logger *slog
 	}
 	return &Service{
 		bot: bot, repo: repo, photos: photos, storage: storage, logger: logger,
-		sessions: make(map[int64]Session),
+		sessions: make(map[int64]Session), targets: make(map[int64]renderTarget),
 	}
 }
 
@@ -58,11 +64,14 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 func (s *Service) handle(ctx context.Context, event domain.Event) error {
+	if event.Kind == domain.EventCallback && event.MessageID != "" {
+		s.setRenderTarget(event.UserID, renderTarget{chatID: event.ChatID, messageID: event.MessageID, userID: event.UserID})
+	}
+	if target, ok := s.renderTarget(event.UserID); ok && target.chatID == event.ChatID {
+		ctx = context.WithValue(ctx, renderTargetContextKey{}, target)
+	}
 	if event.Kind == domain.EventCallback {
 		_ = s.bot.AnswerCallback(ctx, event.CallbackID, "Обрабатываю")
-		if event.MessageID != "" {
-			ctx = context.WithValue(ctx, renderTargetContextKey{}, renderTarget{chatID: event.ChatID, messageID: event.MessageID, userID: event.UserID})
-		}
 		return s.handleCallback(ctx, event)
 	}
 
@@ -72,6 +81,11 @@ func (s *Service) handle(ctx context.Context, event domain.Event) error {
 			return s.handleRegistrationInput(ctx, event)
 		}
 		return s.showRegistration(ctx, event.ChatID)
+	}
+	if event.DisplayName != "" && user.DisplayName != event.DisplayName {
+		user.DisplayName = event.DisplayName
+		s.repo.SaveUser(user)
+		s.persistUser(ctx, user)
 	}
 	if !user.IsActive() {
 		return s.send(ctx, event.ChatID, "⛔ Доступ заблокирован администратором.", nil)
@@ -83,6 +97,19 @@ func (s *Service) handle(ctx context.Context, event domain.Event) error {
 		return s.sendHome(ctx, event.ChatID, user, "Используйте меню ниже — команды больше не нужны.")
 	}
 	return s.sendHome(ctx, event.ChatID, user, "Выберите действие в меню ниже.")
+}
+
+func (s *Service) setRenderTarget(userID int64, target renderTarget) {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	s.targets[userID] = target
+}
+
+func (s *Service) renderTarget(userID int64) (renderTarget, bool) {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	target, ok := s.targets[userID]
+	return target, ok
 }
 
 func (s *Service) setSession(userID int64, session Session) {
@@ -120,6 +147,22 @@ func (s *Service) send(ctx context.Context, chat int64, text string, buttons []d
 		outgoing.MessageID = target.messageID
 	}
 	return s.bot.Send(ctx, outgoing)
+}
+
+func (s *Service) sendUser(ctx context.Context, userID int64, text string, buttons []domain.Button) error {
+	return s.bot.Send(ctx, domain.OutgoingMessage{UserID: userID, Text: text, Buttons: buttons})
+}
+
+func (s *Service) notifyUser(ctx context.Context, userID int64, kind domain.NotificationKind, taskID, text string, buttons []domain.Button) error {
+	if s.notifications == nil {
+		return s.sendUser(ctx, userID, text, buttons)
+	}
+	notification := domain.Notification{ID: newCode(), Kind: kind, RecipientUserID: userID, TaskID: taskID, Text: text, Buttons: buttons}
+	if err := s.notifications.Publish(ctx, notification); err != nil {
+		s.logger.Warn("publish notification, using direct delivery", "error", err, "notification_id", notification.ID, "kind", kind, "user_id", userID)
+		return s.sendUser(ctx, userID, text, buttons)
+	}
+	return nil
 }
 
 func (s *Service) sendHome(ctx context.Context, chat int64, user domain.User, prefix string) error {

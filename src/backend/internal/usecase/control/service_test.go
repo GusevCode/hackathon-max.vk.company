@@ -142,3 +142,38 @@ func TestCallbackRendersExistingMessage(t *testing.T) {
 		t.Fatalf("callback should edit existing message: %#v", bot.sent)
 	}
 }
+
+func TestTextStepRendersIntoLastMenuMessage(t *testing.T) {
+	bot := &fakeBot{}
+	service := NewService(bot, NewMemoryRepository(1), nil, slog.Default())
+	ctx := context.Background()
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "menu-1", Payload: "menu:help"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventMessage, ChatID: 1, UserID: 1, Text: "текстовый шаг"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 2 || bot.sent[1].MessageID != "menu-1" {
+		t.Fatalf("text step should edit the last menu message: %#v", bot.sent)
+	}
+}
+
+func TestRegistrationStoresDisplayName(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	service := NewService(bot, repo, nil, slog.Default())
+	ctx := context.Background()
+	repo.SaveInvite(domain.Invite{Code: "JOIN1234", OrganizationID: "system", Roles: []domain.Role{domain.RoleEmployee}, ExpiresAt: time.Now().Add(time.Hour)})
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 42, UserID: 42, MessageID: "registration", Payload: "auth:invite", DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventMessage, ChatID: 42, UserID: 42, Text: "join1234", DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	user, ok := repo.UserByMaxID(42)
+	if !ok || user.DisplayName != "Иван Петров" {
+		t.Fatalf("display name = %q, want MAX name", user.DisplayName)
+	}
+}

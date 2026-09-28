@@ -118,7 +118,7 @@ func (s *Service) chooseEmployee(ctx context.Context, event domain.Event, user d
 		if user.HasRole(domain.RoleManager) && !user.HasRole(domain.RoleOperator) && !user.HasRole(domain.RoleAdmin) && employee.ManagerID != user.ID {
 			continue
 		}
-		buttons = append(buttons, domain.Button{Text: "👷 " + shortName(employee.DisplayName), Payload: "wizard:employee:" + employee.ID, Row: len(buttons) / 2})
+		buttons = append(buttons, domain.Button{Text: "👷 " + userLabel(employee), Payload: "wizard:employee:" + employee.ID, Row: len(buttons) / 2})
 	}
 	if len(buttons) == 0 {
 		return s.sendHome(ctx, event.ChatID, user, "Нет доступных сотрудников для назначения.")
@@ -144,7 +144,7 @@ func (s *Service) chooseWorkType(ctx context.Context, event domain.Event, user d
 
 func (s *Service) confirmTask(ctx context.Context, event domain.Event, user domain.User, session Session) error {
 	employee, _ := s.userByID(user.OrganizationID, session.Draft.AssigneeID)
-	return s.send(ctx, event.ChatID, fmt.Sprintf("ПРОВЕРЬТЕ ЗАДАНИЕ\n\n%s\n%s\nСотрудник: %s\nСрок: %s\n\nСоздать задание?", session.Draft.Title, session.Draft.Description, employee.DisplayName, session.Draft.DueAt), []domain.Button{
+	return s.send(ctx, event.ChatID, fmt.Sprintf("ПРОВЕРЬТЕ ЗАДАНИЕ\n\n%s\n%s\nСотрудник: %s\nСрок: %s\n\nСоздать задание?", session.Draft.Title, session.Draft.Description, userLabel(employee), session.Draft.DueAt), []domain.Button{
 		{Text: "✅ Создать", Payload: "wizard:confirm:yes", Row: 0},
 		{Text: "✖️ Отменить", Payload: "wizard:confirm:no", Row: 0},
 	})
@@ -167,7 +167,7 @@ func (s *Service) createTaskFromDraft(ctx context.Context, event domain.Event, u
 	s.repo.SaveTask(task)
 	s.persistTask(ctx, task)
 	s.clearSession(event.UserID)
-	if err := s.send(ctx, employee.MaxUserID, fmt.Sprintf("📌 Вам назначено новое задание\n\n%s\nСрок: %s", task.Title, task.DueAt.Format("02.01.2006")), menuForUser(employee)); err != nil {
+	if err := s.notifyUser(ctx, employee.MaxUserID, domain.NotificationTaskAssigned, task.ID, fmt.Sprintf("📌 Вам назначено новое задание\n\n%s\nСрок: %s", task.Title, task.DueAt.Format("02.01.2006")), menuForUser(employee)); err != nil {
 		s.logger.Warn("notify employee", "error", err, "task_id", task.ID)
 	}
 	return s.sendHome(ctx, event.ChatID, user, "✅ Задание создано и отправлено сотруднику.")

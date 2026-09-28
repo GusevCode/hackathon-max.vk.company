@@ -32,7 +32,11 @@ type Repository interface {
 }
 
 type PhotoStore interface {
-	UploadURL(context.Context, string, string) error
+	UploadURL(context.Context, string, string, string) error
+}
+
+type NotificationPublisher interface {
+	Publish(context.Context, domain.Notification) error
 }
 
 type Storage interface {

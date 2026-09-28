@@ -20,14 +20,15 @@ type Photo struct {
 }
 
 type Event struct {
-	Kind       EventKind
-	ChatID     int64
-	UserID     int64
-	MessageID  string
-	Text       string
-	Photos     []Photo
-	Payload    string
-	CallbackID string
+	Kind        EventKind
+	ChatID      int64
+	UserID      int64
+	DisplayName string
+	MessageID   string
+	Text        string
+	Photos      []Photo
+	Payload     string
+	CallbackID  string
 }
 
 type EventKind string
@@ -44,7 +45,10 @@ type Button struct {
 }
 
 type OutgoingMessage struct {
-	ChatID    int64
+	ChatID int64
+	// UserID is used for a direct 1:1 message. ChatID remains the recipient
+	// for messages sent into a conversation or when editing an existing one.
+	UserID    int64
 	MessageID string
 	Text      string
 	Buttons   []Button

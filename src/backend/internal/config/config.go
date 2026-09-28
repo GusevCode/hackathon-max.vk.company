@@ -22,6 +22,7 @@ type Config struct {
 	ObjectStorageAccessKey string
 	ObjectStorageSecretKey string
 	ObjectStorageBucket    string
+	MessageBrokerURL       string
 }
 
 func Load() (Config, error) {
@@ -39,6 +40,7 @@ func Load() (Config, error) {
 		ObjectStorageAccessKey: os.Getenv("OBJECT_STORAGE_ACCESS_KEY"),
 		ObjectStorageSecretKey: os.Getenv("OBJECT_STORAGE_SECRET_KEY"),
 		ObjectStorageBucket:    envOrDefault("OBJECT_STORAGE_BUCKET", "work-evidence"),
+		MessageBrokerURL:       envOrDefault("MESSAGE_BROKER_URL", "nats://nats:4222"),
 	}
 	if rawAdminID := os.Getenv("INITIAL_ADMIN_MAX_USER_ID"); rawAdminID != "" {
 		adminID, parseErr := strconv.ParseUint(rawAdminID, 10, 64)

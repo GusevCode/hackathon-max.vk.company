@@ -28,7 +28,7 @@ func (s *Service) persistTask(ctx context.Context, task domain.Task) {
 func (s *Service) persistPhotos(ctx context.Context, taskID, kind string, photos []domain.Photo) error {
 	for index, photo := range photos {
 		key := fmt.Sprintf("tasks/%s/%s/%d-%d.jpg", taskID, kind, time.Now().UnixNano(), index)
-		if err := s.photos.UploadURL(ctx, key, photo.URL); err != nil {
+		if err := s.photos.UploadURL(ctx, key, photo.URL, photo.Token); err != nil {
 			return err
 		}
 		if s.storage != nil {

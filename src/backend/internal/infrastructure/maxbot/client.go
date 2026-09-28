@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/domain"
 	maxapi "github.com/max-messenger/max-bot-api-client-go"
@@ -88,16 +89,26 @@ func normalizeUpdate(update schemes.UpdateInterface) (domain.Event, bool) {
 				photos = append(photos, domain.Photo{URL: photo.Payload.Url, Token: photo.Payload.Token})
 			}
 		}
-		return domain.Event{Kind: domain.EventMessage, ChatID: value.GetChatID(), UserID: value.GetUserID(), Text: value.GetText(), Photos: photos}, true
+		return domain.Event{Kind: domain.EventMessage, ChatID: value.GetChatID(), UserID: value.GetUserID(), DisplayName: maxUserDisplayName(value.Message.Sender), Text: value.GetText(), Photos: photos}, true
 	case *schemes.MessageCallbackUpdate:
 		messageID := ""
 		if value.Message != nil {
 			messageID = value.Message.Body.Mid
 		}
-		return domain.Event{Kind: domain.EventCallback, ChatID: value.GetChatID(), UserID: value.GetUserID(), MessageID: messageID, Payload: value.Callback.Payload, CallbackID: value.Callback.CallbackID}, true
+		return domain.Event{Kind: domain.EventCallback, ChatID: value.GetChatID(), UserID: value.GetUserID(), DisplayName: maxUserDisplayName(value.Callback.User), MessageID: messageID, Payload: value.Callback.Payload, CallbackID: value.Callback.CallbackID}, true
 	default:
 		return domain.Event{}, false
 	}
+}
+
+func maxUserDisplayName(user schemes.User) string {
+	if user.Name != "" {
+		return user.Name
+	}
+	if user.FirstName != "" || user.LastName != "" {
+		return strings.TrimSpace(user.FirstName + " " + user.LastName)
+	}
+	return user.Username
 }
 
 func (c *Client) WebhookHandler(secret string) http.Handler {
@@ -114,7 +125,12 @@ func (c *Client) SendMessage(ctx context.Context, message domain.Message) error 
 }
 
 func (c *Client) Send(ctx context.Context, message domain.OutgoingMessage) error {
-	msg := maxapi.NewMessage().SetChat(message.ChatID).SetText(message.Text)
+	msg := maxapi.NewMessage().SetText(message.Text)
+	if message.UserID != 0 {
+		msg.SetUser(message.UserID)
+	} else {
+		msg.SetChat(message.ChatID)
+	}
 	if len(message.Buttons) > 0 {
 		keyboard := c.api.Messages.NewKeyboardBuilder()
 		rows := make(map[int]*maxapi.KeyboardRow)

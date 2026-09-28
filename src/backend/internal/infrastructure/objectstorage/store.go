@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,11 +16,12 @@ import (
 )
 
 type Store struct {
-	client *s3.Client
-	bucket string
+	client        *s3.Client
+	bucket        string
+	downloadToken string
 }
 
-func New(endpoint, accessKey, secretKey, bucket string) (*Store, error) {
+func New(endpoint, accessKey, secretKey, bucket, downloadToken string) (*Store, error) {
 	endpoint = normalizeEndpoint(endpoint)
 	if endpoint == "" {
 		return nil, fmt.Errorf("object storage endpoint is empty")
@@ -38,7 +40,7 @@ func New(endpoint, accessKey, secretKey, bucket string) (*Store, error) {
 		options.BaseEndpoint = aws.String(endpoint)
 		options.UsePathStyle = true
 	})
-	return &Store{client: client, bucket: bucket}, nil
+	return &Store{client: client, bucket: bucket, downloadToken: strings.TrimSpace(downloadToken)}, nil
 }
 
 func (s *Store) EnsureBucket(ctx context.Context) error {
@@ -53,24 +55,38 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) UploadURL(ctx context.Context, key, url string) error {
-	if strings.TrimSpace(url) == "" {
+func (s *Store) UploadURL(ctx context.Context, key, sourceURL, _ string) error {
+	if strings.TrimSpace(sourceURL) == "" {
 		return fmt.Errorf("photo URL is empty")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return err
+	}
+	// MAX API requests use the raw bot access token in Authorization (without
+	// the Bearer scheme). Most attachment URLs are signed, but protected MAX
+	// media URLs may need it. Never forward the bot token to an arbitrary URL
+	// received from a user.
+	parsedURL, parseErr := url.Parse(sourceURL)
+	if parseErr != nil {
+		return fmt.Errorf("parse photo URL: %w", parseErr)
+	}
+	if s.downloadToken != "" && isTrustedMAXHost(parsedURL.Hostname()) {
+		req.Header.Set("Authorization", s.downloadToken)
 	}
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("download photo from MAX: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("download photo: HTTP %s", resp.Status)
+		return fmt.Errorf("download photo from MAX: HTTP %s", resp.Status)
 	}
 
-	return s.UploadReader(ctx, key, resp.Body, resp.ContentLength, resp.Header.Get("Content-Type"))
+	if err := s.UploadReader(ctx, key, resp.Body, resp.ContentLength, resp.Header.Get("Content-Type")); err != nil {
+		return fmt.Errorf("upload photo to object storage: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) UploadReader(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error {
@@ -95,4 +111,14 @@ func normalizeEndpoint(endpoint string) string {
 		return endpoint
 	}
 	return "http://" + endpoint
+}
+
+func isTrustedMAXHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	for _, suffix := range []string{"max.ru", "oneme.ru", "okcdn.ru"} {
+		if host == suffix || strings.HasSuffix(host, "."+suffix) {
+			return true
+		}
+	}
+	return false
 }

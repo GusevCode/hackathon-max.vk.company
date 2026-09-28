@@ -22,6 +22,7 @@ services:
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY is required}
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY is required}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-work-evidence}
+      MESSAGE_BROKER_URL: ${MESSAGE_BROKER_URL:-nats://nats:4222}
     expose:
       - "8080"
     healthcheck:
@@ -33,6 +34,7 @@ services:
     depends_on:
       - tarantool
       - seaweedfs
+      - nats
 
   tarantool:
     image: ${TARANTOOL_IMAGE:-tarantool/tarantool:3.4}
@@ -61,6 +63,15 @@ services:
     expose:
       - "8333"
 
+  nats:
+    image: ${NATS_IMAGE:-nats:2.11-alpine}
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats_data:/data
+    expose:
+      - "4222"
+
   # Enable this profile after the domain is pointed at the VPS. Caddy obtains
   # and renews TLS, serves the frontend, and proxies /api to the Go service.
   caddy:
@@ -85,3 +96,4 @@ volumes:
   caddy_config:
   tarantool_data:
   seaweedfs_data:
+  nats_data:

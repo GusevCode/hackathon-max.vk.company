@@ -19,17 +19,20 @@ OBJECT_STORAGE_ACCESS_KEY=admin
 OBJECT_STORAGE_SECRET_KEY=<длинный пароль>
 OBJECT_STORAGE_ENDPOINT=seaweedfs:8333
 OBJECT_STORAGE_BUCKET=work-evidence
+MESSAGE_BROKER_URL=nats://nats:4222
 ```
 
 Запуск выполняется production-профилем:
 
 ```bash
 docker compose --profile https up -d --build
-docker compose logs -f bot
+docker compose logs -f bot nats
 ```
 
-В логе должны появиться `MAX bot connected`, `Tarantool connected`,
-`object storage connected` и `control bot started`.
+В логах должны появиться `MAX bot connected`, `Tarantool connected`,
+`object storage connected` и `control bot started`. Уведомления публикуются в
+NATS subject `max.notifications.v1`; при временной недоступности брокера бот
+использует прямую доставку как fallback.
 
 ## 2. Сценарий ролей через меню
 

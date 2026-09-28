@@ -21,8 +21,8 @@ func (s *Service) listUsers(ctx context.Context, event domain.Event, actor domai
 		if actor.HasRole(domain.RoleManager) && !actor.HasRole(domain.RoleOperator) && !actor.HasRole(domain.RoleAdmin) && user.ManagerID != actor.ID && user.ID != actor.ID {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("• %s — %s", user.DisplayName, strings.Join(roleNames(user.Roles), ", ")))
-		buttons = append(buttons, domain.Button{Text: roleEmoji(user) + " " + shortName(user.DisplayName), Payload: "user:view:" + strconv.FormatInt(user.MaxUserID, 10), Row: len(buttons) / 2})
+		lines = append(lines, fmt.Sprintf("• %s — %s", userLabel(user), strings.Join(roleNames(user.Roles), ", ")))
+		buttons = append(buttons, domain.Button{Text: roleEmoji(user) + " " + userLabel(user), Payload: "user:view:" + strconv.FormatInt(user.MaxUserID, 10), Row: len(buttons) / 2})
 	}
 	buttons = append(buttons, domain.Button{Text: "↩️ Главное меню", Payload: "menu:home", Row: len(buttons)/2 + 1})
 	return s.send(ctx, event.ChatID, strings.Join(lines, "\n"), buttons)
@@ -64,7 +64,7 @@ func (s *Service) userCard(ctx context.Context, event domain.Event, actor, targe
 	if !access.CanViewUser(actor, target) {
 		return s.sendHome(ctx, event.ChatID, actor, "Недостаточно прав для просмотра пользователя.")
 	}
-	text := fmt.Sprintf("👤 %s\n\nРоли: %s\nСтатус: %s", target.DisplayName, strings.Join(roleNames(target.Roles), ", "), userStatusLabel(target.Status))
+	text := fmt.Sprintf("👤 %s\n\nРоли: %s\nСтатус: %s", userLabel(target), strings.Join(roleNames(target.Roles), ", "), userStatusLabel(target.Status))
 	buttons := []domain.Button{{Text: "↩️ К команде", Payload: "menu:users", Row: 2}}
 	if access.CanManageUser(actor, target) {
 		action := "block"
@@ -126,7 +126,7 @@ func (s *Service) managerChoices(ctx context.Context, event domain.Event, actor,
 	buttons := make([]domain.Button, 0)
 	for _, manager := range s.repo.Users(actor.OrganizationID) {
 		if manager.HasRole(domain.RoleManager) || manager.HasRole(domain.RoleOperator) || manager.HasRole(domain.RoleAdmin) {
-			buttons = append(buttons, domain.Button{Text: "🧑‍💼 " + shortName(manager.DisplayName), Payload: "user:manager:" + fmt.Sprint(target.MaxUserID) + ":" + fmt.Sprint(manager.MaxUserID), Row: len(buttons) / 2})
+			buttons = append(buttons, domain.Button{Text: "🧑‍💼 " + userLabel(manager), Payload: "user:manager:" + fmt.Sprint(target.MaxUserID) + ":" + fmt.Sprint(manager.MaxUserID), Row: len(buttons) / 2})
 		}
 	}
 	buttons = append(buttons, domain.Button{Text: "↩️ Назад", Payload: "user:view:" + fmt.Sprint(target.MaxUserID), Row: len(buttons)/2 + 1})
@@ -187,4 +187,12 @@ func shortName(name string) string {
 		return string([]rune(name)[:18]) + "…"
 	}
 	return name
+}
+
+func userLabel(user domain.User) string {
+	name := strings.TrimSpace(user.DisplayName)
+	if name == "" {
+		name = "Пользователь"
+	}
+	return fmt.Sprintf("%s (%d)", shortName(name), user.MaxUserID)
 }

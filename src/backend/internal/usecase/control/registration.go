@@ -23,7 +23,7 @@ func (s *Service) handleRegistrationInput(ctx context.Context, event domain.Even
 		ID:             fmt.Sprintf("user-%d", event.UserID),
 		OrganizationID: invite.OrganizationID,
 		MaxUserID:      event.UserID,
-		DisplayName:    fmt.Sprintf("Пользователь %d", event.UserID),
+		DisplayName:    displayName(event.DisplayName, event.UserID),
 		Roles:          invite.Roles,
 		Status:         domain.UserActive,
 		ManagerID:      invite.ManagerID,
@@ -40,4 +40,11 @@ func (s *Service) handleRegistrationInput(ctx context.Context, event domain.Even
 	}
 	s.clearSession(event.UserID)
 	return s.sendHome(ctx, event.ChatID, user, "✅ Регистрация завершена!")
+}
+
+func displayName(name string, userID int64) string {
+	if strings.TrimSpace(name) != "" {
+		return strings.TrimSpace(name)
+	}
+	return fmt.Sprintf("Пользователь %d", userID)
 }

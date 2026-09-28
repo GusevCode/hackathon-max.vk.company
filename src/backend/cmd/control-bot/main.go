@@ -13,9 +13,11 @@ import (
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/config"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/httpserver"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/maxbot"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/messaging"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/objectstorage"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/infrastructure/tarantool"
 	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/control"
+	"github.com/GusevCode/hackathon-max.vk.company/src/backend/internal/usecase/notifications"
 )
 
 func main() {
@@ -107,7 +109,7 @@ func main() {
 		loadCancel()
 	}
 	var photoStore control.PhotoStore
-	objectStore, objectStoreErr := objectstorage.New(cfg.ObjectStorageEndpoint, cfg.ObjectStorageAccessKey, cfg.ObjectStorageSecretKey, cfg.ObjectStorageBucket)
+	objectStore, objectStoreErr := objectstorage.New(cfg.ObjectStorageEndpoint, cfg.ObjectStorageAccessKey, cfg.ObjectStorageSecretKey, cfg.ObjectStorageBucket, cfg.MaxBotToken)
 	if objectStoreErr != nil {
 		logger.Warn("object storage unavailable, photo uploads disabled", "error", objectStoreErr)
 	} else {
@@ -121,7 +123,28 @@ func main() {
 			logger.Info("object storage connected", "endpoint", cfg.ObjectStorageEndpoint, "bucket", cfg.ObjectStorageBucket)
 		}
 	}
-	if runErr := control.NewService(bot, repository, photoStore, logger, storage).Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
+	var messageBroker *messaging.NATS
+	if broker, brokerErr := messaging.Connect(cfg.MessageBrokerURL); brokerErr != nil {
+		logger.Warn("message broker unavailable, notifications will use direct delivery", "error", brokerErr)
+	} else {
+		messageBroker = broker
+		logger.Info("message broker configured", "url", cfg.MessageBrokerURL, "subject", "max.notifications.v1")
+		defer func() {
+			if closeErr := messageBroker.Close(); closeErr != nil {
+				logger.Warn("close message broker", "error", closeErr)
+			}
+		}()
+		go func() {
+			if notificationErr := notifications.NewService(messageBroker, bot, logger).Run(ctx); notificationErr != nil && !errors.Is(notificationErr, context.Canceled) {
+				logger.Error("notification module stopped", "error", notificationErr)
+			}
+		}()
+	}
+	controlService := control.NewService(bot, repository, photoStore, logger, storage)
+	if messageBroker != nil {
+		controlService.SetNotificationPublisher(messageBroker)
+	}
+	if runErr := controlService.Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
 		logger.Error("control bot stopped with error", "error", runErr)
 	}
 
