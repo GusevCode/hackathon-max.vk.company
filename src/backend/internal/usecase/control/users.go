@@ -144,7 +144,16 @@ func (s *Service) assignManager(ctx context.Context, event domain.Event, actor d
 	}
 	employee, employeeOK := s.repo.UserByMaxID(employeeMaxID)
 	manager, managerOK := s.repo.UserByMaxID(managerMaxID)
-	if !employeeOK || !managerOK || employee.OrganizationID != actor.OrganizationID || manager.OrganizationID != actor.OrganizationID || !employee.HasRole(domain.RoleEmployee) || !(manager.HasRole(domain.RoleManager) || manager.HasRole(domain.RoleOperator) || manager.HasRole(domain.RoleAdmin)) {
+	if !employeeOK || !managerOK {
+		return s.sendHome(ctx, event.ChatID, actor, "Проверьте роли пользователей.")
+	}
+	if employee.OrganizationID != actor.OrganizationID || manager.OrganizationID != actor.OrganizationID {
+		return s.sendHome(ctx, event.ChatID, actor, "Проверьте роли пользователей.")
+	}
+	if !employee.HasRole(domain.RoleEmployee) {
+		return s.sendHome(ctx, event.ChatID, actor, "Выбранный пользователь не является сотрудником.")
+	}
+	if !manager.HasRole(domain.RoleManager) && !manager.HasRole(domain.RoleOperator) && !manager.HasRole(domain.RoleAdmin) {
 		return s.sendHome(ctx, event.ChatID, actor, "Проверьте роли пользователей.")
 	}
 	employee.ManagerID = manager.ID
