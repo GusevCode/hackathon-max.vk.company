@@ -35,6 +35,7 @@ type Task struct {
 	Priority       Priority
 	Status         TaskStatus
 	Comment        string
+	SubmissionID   string
 	BeforePhotos   []Photo
 	AfterPhotos    []Photo
 	CreatedAt      time.Time

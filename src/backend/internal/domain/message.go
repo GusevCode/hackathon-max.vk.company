@@ -15,8 +15,9 @@ type Message struct {
 }
 
 type Photo struct {
-	URL   string
-	Token string
+	URL       string
+	Token     string
+	ObjectKey string
 }
 
 type Event struct {

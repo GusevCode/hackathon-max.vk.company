@@ -30,11 +30,17 @@ type Repository interface {
 	SaveTask(domain.Task)
 	Tasks(string) []domain.Task
 	SaveReview(domain.Review)
+	SaveEvidence(domain.Evidence)
+	Evidences(string) []domain.Evidence
+	SaveAnalysis(domain.EvidenceAnalysis)
+	Analysis(string) (domain.EvidenceAnalysis, bool)
 	ClearTasks(string) []string
 }
 
 type PhotoStore interface {
 	UploadURL(context.Context, string, string, string) error
+	Read(context.Context, string, int64) ([]byte, string, error)
+	DeleteObject(context.Context, string) error
 	DeleteAllTaskPhotos(context.Context) error
 }
 
@@ -42,11 +48,17 @@ type NotificationPublisher interface {
 	Publish(context.Context, domain.Notification) error
 }
 
+type InspectionPublisher interface {
+	PublishInspection(context.Context, domain.InspectionRequested) error
+}
+
 type Storage interface {
 	SaveUser(context.Context, domain.User) error
 	SaveTask(context.Context, domain.Task) error
 	SaveEvidence(context.Context, domain.Evidence) error
+	DeleteEvidence(context.Context, string, string) error
 	SaveReview(context.Context, domain.Review) error
+	SaveAnalysis(context.Context, domain.EvidenceAnalysis) error
 	SaveObject(context.Context, domain.Object) error
 	SaveWorkType(context.Context, domain.WorkType) error
 	SaveInvite(context.Context, domain.Invite) error

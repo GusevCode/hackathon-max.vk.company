@@ -60,3 +60,17 @@ func TestCanCloseTask(t *testing.T) {
 		t.Fatal("closed task should be hidden from active task views")
 	}
 }
+
+func TestCanDeleteTaskPhoto(t *testing.T) {
+	task := domain.Task{OrganizationID: "org", ManagerID: "manager", AssigneeID: "employee", Status: domain.TaskInProgress}
+	manager := domain.User{ID: "manager", OrganizationID: "org", Roles: []domain.Role{domain.RoleManager}, Status: domain.UserActive}
+	employee := domain.User{ID: "employee", OrganizationID: "org", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
+	otherEmployee := domain.User{ID: "other", OrganizationID: "org", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
+
+	if !access.CanDeleteTaskPhoto(manager, task) || !access.CanDeleteTaskPhoto(employee, task) {
+		t.Fatal("manager and assignee should be able to delete task photos")
+	}
+	if access.CanDeleteTaskPhoto(otherEmployee, task) {
+		t.Fatal("another employee should not be able to delete task photos")
+	}
+}

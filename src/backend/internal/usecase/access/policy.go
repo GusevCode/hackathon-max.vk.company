@@ -88,6 +88,15 @@ func CanCloseTask(user domain.User, task domain.Task) bool {
 	return user.HasRole(domain.RoleAdmin) || (user.HasRole(domain.RoleManager) && task.ManagerID == user.ID)
 }
 
+func CanDeleteTaskPhoto(user domain.User, task domain.Task) bool {
+	if !CanViewTask(user, task) {
+		return false
+	}
+	return user.HasRole(domain.RoleAdmin) ||
+		(user.HasRole(domain.RoleManager) && task.ManagerID == user.ID) ||
+		(user.HasRole(domain.RoleEmployee) && task.AssigneeID == user.ID)
+}
+
 func CanEditTask(user domain.User, task domain.Task) bool {
 	if !Can(user, ActionEditTask) || user.OrganizationID != task.OrganizationID {
 		return false

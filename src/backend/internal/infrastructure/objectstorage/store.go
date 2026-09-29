@@ -132,6 +132,42 @@ func (s *Store) UploadReader(ctx context.Context, key string, reader io.Reader, 
 	return err
 }
 
+func (s *Store) Read(ctx context.Context, key string, maxBytes int64) ([]byte, string, error) {
+	if strings.TrimSpace(key) == "" {
+		return nil, "", fmt.Errorf("object key is empty")
+	}
+	if maxBytes <= 0 {
+		return nil, "", fmt.Errorf("maximum object size must be positive")
+	}
+	response, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return nil, "", fmt.Errorf("get object %q: %w", key, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.ContentLength != nil && *response.ContentLength > maxBytes {
+		return nil, "", fmt.Errorf("object %q is larger than %d bytes", key, maxBytes)
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxBytes+1))
+	if err != nil {
+		return nil, "", fmt.Errorf("read object %q: %w", key, err)
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, "", fmt.Errorf("object %q is larger than %d bytes", key, maxBytes)
+	}
+	return data, aws.ToString(response.ContentType), nil
+}
+
+func (s *Store) DeleteObject(ctx context.Context, key string) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("object key is empty")
+	}
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return fmt.Errorf("delete object %q: %w", key, err)
+	}
+	return nil
+}
+
 func (s *Store) DeleteAllTaskPhotos(ctx context.Context) error {
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
