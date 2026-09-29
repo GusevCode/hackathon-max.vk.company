@@ -37,6 +37,9 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 	if task.Comment != "" {
 		text += "\nКомментарий: " + task.Comment
 	}
+	if task.Status == domain.TaskSubmitted && access.CanReviewTask(user, task) {
+		text += s.analysisText(task)
+	}
 	buttons := make([]domain.Button, 0, 4)
 	if user.HasRole(domain.RoleEmployee) && task.AssigneeID == user.ID {
 		if task.Status == domain.TaskAssigned || task.Status == domain.TaskRework {

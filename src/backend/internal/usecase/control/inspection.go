@@ -106,9 +106,9 @@ func (s *Service) analysisText(task domain.Task) string {
 				lines = append(lines, "• "+shortAnalysisText(value))
 			}
 		}
-		appendItems("Наблюдения:", analysis.Observations)
+		appendItems("Видимые признаки:", analysis.Observations)
 		appendItems("Недостающие требования:", analysis.MissingRequirements)
-		appendItems("Вопросы:", analysis.Questions)
+		appendItems("Проверьте вручную:", analysis.Questions)
 		lines = append(lines, "ИИ не принимает решение. Итог подтверждает руководитель.")
 		return strings.Join(lines, "\n")
 	default:

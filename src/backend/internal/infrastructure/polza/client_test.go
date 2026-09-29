@@ -35,7 +35,7 @@ func TestAnalyzeSendsVisionRequestAndParsesStructuredResponse(t *testing.T) {
 		}
 		messages := body["messages"].([]any)
 		system := messages[0].(map[string]any)
-		if !strings.Contains(system["content"].(string), "only in Russian") {
+		if !strings.Contains(system["content"].(string), "только на русском") {
 			t.Fatalf("system prompt does not require Russian report text: %q", system["content"])
 		}
 		user := messages[1].(map[string]any)
