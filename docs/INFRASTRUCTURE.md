@@ -8,7 +8,7 @@
 git push / Pull Request
         |
         v
-GitHub Actions: Go + frontend tests/linters/builds -> Docker build
+GitHub Actions: тесты/линтеры/сборка Go и frontend -> сборка Docker
         |
         +---- merge в main
         |
@@ -25,20 +25,20 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - `src/backend` — Go-модуль MAX-бота на чистой архитектуре.
 - `src/frontend` — React + TypeScript + Vite статусная страница.
 - `compose.yaml` — запуск бота и HTTPS-профиля Caddy.
-- `infra/docker/backend.Dockerfile` — multi-stage образ Go 1.25.
-- `infra/docker/frontend.Dockerfile` — сборка Vite и runtime-образ Caddy.
-- `infra/caddy/Caddyfile` — HTTPS, статический frontend и reverse proxy `/api/*`.
+- `infra/docker/backend.Dockerfile` — многоэтапный образ Go 1.25.
+- `infra/docker/frontend.Dockerfile` — сборка Vite и рабочий образ Caddy.
+- `infra/caddy/Caddyfile` — HTTPS, статический frontend и обратный прокси `/api/*`.
 - `.golangci.yml` — конфигурация golangci-lint 2.x.
 - `.github/workflows/ci.yml` — проверки push/PR.
 - `.github/workflows/deploy.yml` — ручная сборка двух образов, публикация в GHCR и деплой на VPS; при деплое перезапускается Tarantool для применения схемы.
-- `/healthz` — health endpoint backend на внутреннем порту `8080`.
+- `/healthz` — endpoint проверки состояния backend на внутреннем порту `8080`.
 - `/webhook` — защищённый endpoint MAX Webhook на публичном HTTPS-домене.
 - `tarantool` — один экземпляр БД с начальной схемой из `infra/tarantool/init.lua`.
 - `seaweedfs` — локальное S3-совместимое хранилище фотографий (`chrislusf/seaweedfs:4.47`).
 - `nats` — брокер событий для межмодульных уведомлений (`nats:2.11-alpine`,
   JetStream включён, данные в volume `nats_data`).
 
-Бот получает события через Webhook. Для production обязательны DNS, HTTPS и
+Бот получает события через Webhook. Для рабочего окружения обязательны DNS, HTTPS и
 `PUBLIC_BASE_URL`, указывающий на домен VPS.
 
 Перед первым запуском SeaweedFS в `.env` на VPS должны быть заданы
@@ -88,7 +88,7 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 - подключить URL mini app к боту в MAX;
 - зарегистрировать URL mini app в MAX.
 
-## GitHub secrets
+## Секреты GitHub
 
 Рекомендуется создать отдельное GitHub Environment `production` и хранить секреты там:
 
@@ -108,13 +108,13 @@ SeaweedFS не нужны GitHub Actions: они остаются только �
 
 ## Правила эксплуатации
 
-- Не использовать `root` для deploy.
+- Не использовать `root` для деплоя.
 - Не отключать проверку `known_hosts` и не использовать `StrictHostKeyChecking=no`.
 - Не хранить `.env`, SSH-ключи и токены в GitHub artifacts.
 - Использовать immutable image tag по commit SHA; `latest` оставлять только как удобный alias.
-- После deploy проверять health endpoint и логи контейнера.
+- После деплоя проверять endpoint состояния и логи контейнера.
 - Настроить резервное копирование Tarantool и SeaweedFS после появления данных.
-- Для production MAX использовать webhook и доверенный TLS-сертификат.
+- Для рабочего окружения MAX использовать webhook и доверенный TLS-сертификат.
 
 ### TLS-сертификат MAX API
 

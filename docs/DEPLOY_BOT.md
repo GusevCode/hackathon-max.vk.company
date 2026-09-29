@@ -168,9 +168,9 @@ bot.example.ru {
 
 ## 7. Создать секреты GitHub Actions
 
-В GitHub откройте Settings -> Environments -> New environment, создайте окружение production.
+В GitHub откройте Settings → Environments → New environment и создайте окружение `production`.
 
-Добавьте в production -> Environment secrets:
+Добавьте в `production` следующие секреты окружения:
 
 | Secret | Значение |
 |---|---|
@@ -197,7 +197,7 @@ ssh-keyscan -H bot.example.ru
 ```powershell
 git status
 git add .
-git commit -m "Prepare ЖКХ Контроль deployment"
+git commit -m "Настроить деплой ЖКХ Контроль"
 git push origin main
 ```
 
@@ -206,9 +206,9 @@ git push origin main
 ## 9. Выполнить первый деплой
 
 1. Откройте GitHub -> Actions -> Deploy.
-2. Нажмите Run workflow.
+2. Нажмите Run workflow («Запустить workflow»).
 3. В поле ref укажите main (или вашу ветку).
-4. Дождитесь зелёных job Build and publish image и Deploy to VPS.
+4. Дождитесь успешного завершения задач Build and publish image и Deploy to VPS.
 
 Workflow собирает образ, публикует его в GHCR, копирует Compose/Caddyfile на VPS, запускает bot и Caddy, а затем удаляет старые образы.
 
@@ -258,8 +258,8 @@ docker compose logs --tail=100 caddy
 - не открывать наружу порт 8080;
 - не хранить токен в репозитории;
 - не добавлять базу данных до появления подтверждённого сценария хранения;
-- не писать frontend до решения о mini-app;
-- для первого demo оставить Long Polling, но перед полноценным production-запуском перейти на Webhook.
+- не развивать frontend до решения о mini app;
+- для первого демо оставить Long Polling, но перед полноценным рабочим запуском перейти на Webhook.
 
 После проверки можно развивать команды, роли, задания и фотоотчёты.
 
