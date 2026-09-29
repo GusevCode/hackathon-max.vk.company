@@ -102,6 +102,8 @@ func normalizeUpdate(update schemes.UpdateInterface) (domain.Event, bool) {
 			messageID = value.Message.Body.Mid
 		}
 		return domain.Event{Kind: domain.EventCallback, ChatID: value.GetChatID(), UserID: value.GetUserID(), DisplayName: maxUserDisplayName(value.Callback.User), MessageID: messageID, Payload: value.Callback.Payload, CallbackID: value.Callback.CallbackID}, true
+	case *schemes.BotStartedUpdate:
+		return domain.Event{Kind: domain.EventStarted, ChatID: value.GetChatID(), UserID: value.GetUserID(), DisplayName: maxUserDisplayName(value.User), Payload: value.Payload}, true
 	default:
 		return domain.Event{}, false
 	}

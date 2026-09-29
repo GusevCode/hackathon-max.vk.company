@@ -116,6 +116,33 @@ func TestInviteCodeRegistrationUsesMenu(t *testing.T) {
 	}
 }
 
+func TestBotStartedOpensRegistrationMenuWithoutMessage(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	service := NewService(bot, repo, nil, slog.Default())
+
+	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventStarted, ChatID: 42, UserID: 42, DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 1 || bot.sent[0].ChatID != 42 || bot.sent[0].Buttons[0].Payload != "auth:invite" {
+		t.Fatalf("start event did not open registration menu: %#v", bot.sent)
+	}
+}
+
+func TestBotStartedOpensMainMenuForRegisteredUser(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	repo.SaveUser(domain.User{ID: "user-42", OrganizationID: "system", MaxUserID: 42, DisplayName: "Иван Петров", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive})
+	service := NewService(bot, repo, nil, slog.Default())
+
+	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventStarted, ChatID: 42, UserID: 42, DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 1 || bot.sent[0].ChatID != 42 || len(bot.sent[0].Buttons) == 0 {
+		t.Fatalf("start event did not open main menu: %#v", bot.sent)
+	}
+}
+
 func TestCommandsDoNotMutateState(t *testing.T) {
 	service := NewService(&fakeBot{}, NewMemoryRepository(1), nil, slog.Default())
 	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventMessage, ChatID: 1, UserID: 1, Text: "/invite employee"}); err != nil {

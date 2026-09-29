@@ -37,6 +37,7 @@ type EventKind string
 const (
 	EventMessage  EventKind = "message"
 	EventCallback EventKind = "callback"
+	EventStarted  EventKind = "started"
 )
 
 type Button struct {
