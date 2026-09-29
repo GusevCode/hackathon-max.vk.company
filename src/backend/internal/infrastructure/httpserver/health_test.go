@@ -42,3 +42,16 @@ func TestVersion(t *testing.T) {
 		t.Fatalf("version = %q, want %q", payload.Version, "abc123")
 	}
 }
+
+func TestSwaggerUI(t *testing.T) {
+	server := httpserver.HandlerWithVersion(nil, "abc123")
+
+	for _, path := range []string{"/api/swagger/index.html", "/api/swagger/doc.json"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		res := httptest.NewRecorder()
+		server.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want %d", path, res.Code, http.StatusOK)
+		}
+	}
+}

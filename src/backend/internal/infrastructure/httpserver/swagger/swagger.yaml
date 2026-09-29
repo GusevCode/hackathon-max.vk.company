@@ -1,0 +1,33 @@
+basePath: /api
+definitions:
+  httpserver.VersionResponse:
+    properties:
+      version:
+        example: abc123
+        type: string
+    type: object
+info:
+  contact: {}
+  description: |-
+    Технический API приложения ЖКХ Контроль.
+    Публичные методы доступны через префикс /api.
+  title: ЖКХ Контроль API
+  version: "1.0"
+paths:
+  /version:
+    get:
+      description: Возвращает ревизию backend, запущенную в текущем окружении.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpserver.VersionResponse'
+      summary: Получить версию приложения
+      tags:
+      - system
+schemes:
+- https
+- http
+swagger: "2.0"

@@ -1,4 +1,4 @@
-.PHONY: fmt test lint check build docker-up docker-down
+.PHONY: fmt test lint check build swagger docker-up docker-down
 
 BACKEND_DIR := src/backend
 
@@ -15,6 +15,9 @@ check: fmt test lint
 
 build:
 	go -C $(BACKEND_DIR) build ./cmd/control-bot
+
+swagger:
+	go -C $(BACKEND_DIR) run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g internal/infrastructure/httpserver/api.go -d . -o internal/infrastructure/httpserver/swagger --parseInternal --packageName swaggerdocs
 
 docker-up:
 	docker compose up --build bot

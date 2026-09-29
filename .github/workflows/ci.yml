@@ -37,6 +37,11 @@ jobs:
       - name: Run vet
         run: go vet ./...
 
+      - name: Generate Swagger and check it is up to date
+        run: |
+          go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g internal/infrastructure/httpserver/api.go -d . -o internal/infrastructure/httpserver/swagger --parseInternal --packageName swaggerdocs
+          git diff --exit-code -- internal/infrastructure/httpserver/swagger
+
       - name: Run tests with race detector
         run: go test -race -coverprofile=coverage.out ./...
 
