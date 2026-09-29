@@ -36,6 +36,9 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 	if task.Comment != "" {
 		text += "\nКомментарий: " + task.Comment
 	}
+	if task.Status == domain.TaskSubmitted && access.CanReviewTask(user, task) {
+		text += s.analysisText(task)
+	}
 	buttons := make([]domain.Button, 0, 4)
 	if user.HasRole(domain.RoleEmployee) && task.AssigneeID == user.ID {
 		if task.Status == domain.TaskAssigned || task.Status == domain.TaskRework {
@@ -56,6 +59,9 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 			domain.Button{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0},
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
 		)
+		if s.inspections != nil {
+			buttons = append(buttons, domain.Button{Text: "🤖 Повторить ИИ-анализ", Payload: "task:reanalyze:" + task.ID, Row: 1})
+		}
 	}
 	if access.CanEditTask(user, task) {
 		buttons = append(buttons, domain.Button{Text: "✏️ Редактировать", Payload: "task:edit:" + task.ID, Row: 2})
@@ -176,17 +182,23 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 		return s.send(ctx, event.ChatID, "Комментарий обязателен — напишите, что именно сделано.", nil)
 	}
 	task.AfterPhotos = append(task.AfterPhotos, photos...)
+	var afterEvidence []domain.Evidence
+	submissionID := newCode()
 	if s.photos != nil {
-		if err := s.persistPhotos(ctx, task.ID, "after", photos); err != nil {
+		var err error
+		afterEvidence, err = s.persistPhotos(ctx, task.ID, "after", submissionID, photos)
+		if err != nil {
 			s.logger.Warn("upload after photos", "error", err, "task_id", task.ID, "photos", len(photos))
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}
 	}
+	task.SubmissionID = submissionID
 	task.Comment = strings.TrimSpace(comment)
 	task.Status = domain.TaskSubmitted
 	task.UpdatedAt = time.Now()
 	s.repo.SaveTask(task)
 	s.persistTask(ctx, task)
+	s.requestInspection(ctx, task, afterEvidence)
 	s.clearSession(event.UserID)
 	if manager, ok := s.userByID(task.OrganizationID, task.ManagerID); ok {
 		if err := s.notifyUser(ctx, manager.MaxUserID, domain.NotificationTaskSubmitted, task.ID, fmt.Sprintf("📸 Новый фотоотчёт\n\n%s\nКомментарий: %s", task.Title, task.Comment), menuForUser(manager), task.AfterPhotos); err != nil {
@@ -202,7 +214,7 @@ func (s *Service) attachBefore(ctx context.Context, event domain.Event, user dom
 	}
 	task.BeforePhotos = append(task.BeforePhotos, photos...)
 	if s.photos != nil {
-		if err := s.persistPhotos(ctx, task.ID, "before", photos); err != nil {
+		if _, err := s.persistPhotos(ctx, task.ID, "before", "", photos); err != nil {
 			s.logger.Warn("upload before photos", "error", err, "task_id", task.ID, "photos", len(photos))
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}

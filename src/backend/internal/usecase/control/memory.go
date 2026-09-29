@@ -15,10 +15,12 @@ type MemoryRepository struct {
 	workTypes map[string]domain.WorkType
 	tasks     map[string]domain.Task
 	reviews   []domain.Review
+	evidence  map[string][]domain.Evidence
+	analyses  map[string]domain.EvidenceAnalysis
 }
 
 func NewMemoryRepository(initialAdmin int64) *MemoryRepository {
-	r := &MemoryRepository{users: map[int64]domain.User{}, invites: map[string]domain.Invite{}, orgs: map[string]domain.Organization{}, objects: map[string]domain.Object{}, workTypes: map[string]domain.WorkType{}, tasks: map[string]domain.Task{}}
+	r := &MemoryRepository{users: map[int64]domain.User{}, invites: map[string]domain.Invite{}, orgs: map[string]domain.Organization{}, objects: map[string]domain.Object{}, workTypes: map[string]domain.WorkType{}, tasks: map[string]domain.Task{}, evidence: map[string][]domain.Evidence{}, analyses: map[string]domain.EvidenceAnalysis{}}
 	r.orgs["system"] = domain.Organization{ID: "system", Name: "Основная организация"}
 	r.users[initialAdmin] = domain.User{ID: "initial-admin", OrganizationID: "system", MaxUserID: initialAdmin, DisplayName: "Первый администратор", Roles: []domain.Role{domain.RoleAdmin}, Status: domain.UserActive}
 	return r
@@ -137,6 +139,34 @@ func (r *MemoryRepository) SaveReview(v domain.Review) {
 	r.reviews = append(r.reviews, v)
 }
 
+func (r *MemoryRepository) SaveEvidence(evidence domain.Evidence) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evidence[evidence.TaskID] = append(r.evidence[evidence.TaskID], evidence)
+}
+
+func (r *MemoryRepository) Evidences(taskID string) []domain.Evidence {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return append([]domain.Evidence(nil), r.evidence[taskID]...)
+}
+
+func (r *MemoryRepository) SaveAnalysis(analysis domain.EvidenceAnalysis) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, exists := r.analyses[analysis.TaskID]
+	if !exists || current.ID == analysis.ID || !analysis.RequestedAt.Before(current.RequestedAt) {
+		r.analyses[analysis.TaskID] = analysis
+	}
+}
+
+func (r *MemoryRepository) Analysis(taskID string) (domain.EvidenceAnalysis, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	analysis, ok := r.analyses[taskID]
+	return analysis, ok
+}
+
 func (r *MemoryRepository) ClearTasks(organizationID string) []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,6 +177,8 @@ func (r *MemoryRepository) ClearTasks(organizationID string) []string {
 		}
 		ids = append(ids, id)
 		delete(r.tasks, id)
+		delete(r.evidence, id)
+		delete(r.analyses, id)
 	}
 	keptReviews := r.reviews[:0]
 	for _, review := range r.reviews {

@@ -3,9 +3,10 @@ package domain
 import "time"
 
 type Evidence struct {
-	ID        string
-	TaskID    string
-	Kind      string
-	ObjectKey string
-	CreatedAt time.Time
+	ID           string
+	TaskID       string
+	Kind         string
+	ObjectKey    string
+	SubmissionID string
+	CreatedAt    time.Time
 }

@@ -102,8 +102,9 @@ GitHub Actions: Go + frontend tests/linters/builds -> Docker build
 | `GHCR_USERNAME` | пользователь/robot account для pull из GHCR |
 | `GHCR_READ_TOKEN` | token только с `read:packages` |
 
-`MAX_BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, пароли Tarantool и SeaweedFS не нужны GitHub
-Actions: они остаются только в `.env` на VPS и локальной машине разработчика.
+`MAX_BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, `POLZA_AI_API_KEY`, пароли Tarantool и
+SeaweedFS не нужны GitHub Actions: они остаются только в `.env` на VPS и
+локальной машине разработчика.
 
 ## Правила эксплуатации
 

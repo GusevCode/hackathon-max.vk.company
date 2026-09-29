@@ -25,20 +25,23 @@ func (s *Service) persistTask(ctx context.Context, task domain.Task) {
 	}
 }
 
-func (s *Service) persistPhotos(ctx context.Context, taskID, kind string, photos []domain.Photo) error {
+func (s *Service) persistPhotos(ctx context.Context, taskID, kind, submissionID string, photos []domain.Photo) ([]domain.Evidence, error) {
+	evidenceItems := make([]domain.Evidence, 0, len(photos))
 	for index, photo := range photos {
 		key := fmt.Sprintf("tasks/%s/%s/%d-%d.jpg", taskID, kind, time.Now().UnixNano(), index)
 		if err := s.photos.UploadURL(ctx, key, photo.URL, photo.Token); err != nil {
-			return err
+			return nil, err
 		}
+		evidence := domain.Evidence{ID: newCode(), TaskID: taskID, Kind: kind, ObjectKey: key, SubmissionID: submissionID, CreatedAt: time.Now()}
 		if s.storage != nil {
-			evidence := domain.Evidence{ID: newCode(), TaskID: taskID, Kind: kind, ObjectKey: key, CreatedAt: time.Now()}
 			if err := s.storage.SaveEvidence(ctx, evidence); err != nil {
-				return err
+				return nil, err
 			}
 		}
+		s.repo.SaveEvidence(evidence)
+		evidenceItems = append(evidenceItems, evidence)
 	}
-	return nil
+	return evidenceItems, nil
 }
 
 func newCode() string {

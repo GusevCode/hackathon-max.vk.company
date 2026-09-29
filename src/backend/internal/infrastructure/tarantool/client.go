@@ -55,9 +55,71 @@ func (c *Client) Tasks(ctx context.Context) ([]domain.Task, error) {
 		if len(row) < 10 {
 			continue
 		}
-		tasks = append(tasks, domain.Task{ID: stringValue(row[0]), OrganizationID: stringValue(row[1]), Title: stringValue(row[2]), Description: stringValue(row[3]), ObjectID: stringValue(row[4]), AssigneeID: stringValue(row[5]), ManagerID: stringValue(row[6]), Status: domain.TaskStatus(stringValue(row[7])), DueAt: time.Unix(int64Value(row[8]), 0), CreatedAt: time.Unix(int64Value(row[9]), 0)})
+		task := domain.Task{ID: stringValue(row[0]), OrganizationID: stringValue(row[1]), Title: stringValue(row[2]), Description: stringValue(row[3]), ObjectID: stringValue(row[4]), AssigneeID: stringValue(row[5]), ManagerID: stringValue(row[6]), Status: domain.TaskStatus(stringValue(row[7])), DueAt: time.Unix(int64Value(row[8]), 0), CreatedAt: time.Unix(int64Value(row[9]), 0)}
+		if len(row) > 10 && row[10] != nil {
+			task.WorkTypeID = stringValue(row[10])
+		}
+		if len(row) > 11 && row[11] != nil {
+			task.Priority = domain.Priority(stringValue(row[11]))
+		}
+		if len(row) > 12 && row[12] != nil {
+			task.Comment = stringValue(row[12])
+		}
+		if len(row) > 13 && row[13] != nil {
+			task.UpdatedAt = time.Unix(int64Value(row[13]), 0)
+		}
+		if len(row) > 14 && row[14] != nil {
+			task.SubmissionID = stringValue(row[14])
+		}
+		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+func (c *Client) Evidences(ctx context.Context) ([]domain.Evidence, error) {
+	var rows [][]interface{}
+	err := c.conn.Do(tnt.NewSelectRequest("evidence").Index("primary").Iterator(tnt.IterAll).Context(ctx)).GetTyped(&rows)
+	if err != nil {
+		return nil, err
+	}
+	evidenceItems := make([]domain.Evidence, 0, len(rows))
+	for _, row := range rows {
+		if len(row) < 6 {
+			continue
+		}
+		evidence := domain.Evidence{ID: stringValue(row[0]), TaskID: stringValue(row[1]), Kind: stringValue(row[2]), ObjectKey: stringValue(row[3]), CreatedAt: time.Unix(int64Value(row[5]), 0)}
+		if len(row) > 6 && row[6] != nil {
+			evidence.SubmissionID = stringValue(row[6])
+		}
+		evidenceItems = append(evidenceItems, evidence)
+	}
+	return evidenceItems, nil
+}
+
+func (c *Client) Analyses(ctx context.Context) ([]domain.EvidenceAnalysis, error) {
+	var rows [][]interface{}
+	err := c.conn.Do(tnt.NewSelectRequest("evidence_analyses").Index("primary").Iterator(tnt.IterAll).Context(ctx)).GetTyped(&rows)
+	if err != nil {
+		return nil, err
+	}
+	analyses := make([]domain.EvidenceAnalysis, 0, len(rows))
+	for _, row := range rows {
+		if len(row) < 23 {
+			continue
+		}
+		analyses = append(analyses, domain.EvidenceAnalysis{
+			ID: stringValue(row[0]), TaskID: stringValue(row[1]), SubmissionID: stringValue(row[2]),
+			Status: domain.AnalysisStatus(stringValue(row[3])), Relevant: boolValue(row[4]),
+			Quality: domain.EvidenceQuality(stringValue(row[5])), Observations: stringSliceValue(row[6]),
+			MissingRequirements: stringSliceValue(row[7]), CommentSummary: stringValue(row[8]),
+			Recommendation: domain.AnalysisRecommendation(stringValue(row[9])), Confidence: float64Value(row[10]),
+			Questions: stringSliceValue(row[11]), Model: stringValue(row[12]), Provider: stringValue(row[13]),
+			PromptVersion: stringValue(row[14]), InputHash: stringValue(row[15]), PromptTokens: int(int64Value(row[16])),
+			CompletionTokens: int(int64Value(row[17])), TotalTokens: int(int64Value(row[18])), CostRUB: float64Value(row[19]),
+			ErrorCode: stringValue(row[20]), RequestedAt: time.Unix(int64Value(row[21]), 0), CompletedAt: time.Unix(int64Value(row[22]), 0),
+		})
+	}
+	return analyses, nil
 }
 
 func (c *Client) Invites(ctx context.Context) ([]domain.Invite, error) {
@@ -156,17 +218,31 @@ func (c *Client) SaveUser(ctx context.Context, user domain.User) error {
 }
 
 func (c *Client) SaveTask(ctx context.Context, task domain.Task) error {
-	_, err := c.conn.Do(tnt.NewReplaceRequest("tasks").Tuple([]interface{}{task.ID, task.OrganizationID, task.Title, task.Description, task.ObjectID, task.AssigneeID, task.ManagerID, string(task.Status), task.DueAt.Unix(), task.CreatedAt.Unix()}).Context(ctx)).Get()
+	_, err := c.conn.Do(tnt.NewReplaceRequest("tasks").Tuple([]interface{}{task.ID, task.OrganizationID, task.Title, task.Description, task.ObjectID, task.AssigneeID, task.ManagerID, string(task.Status), task.DueAt.Unix(), task.CreatedAt.Unix(), task.WorkTypeID, string(task.Priority), task.Comment, task.UpdatedAt.Unix(), task.SubmissionID}).Context(ctx)).Get()
 	return err
 }
 
 func (c *Client) SaveEvidence(ctx context.Context, evidence domain.Evidence) error {
-	_, err := c.conn.Do(tnt.NewReplaceRequest("evidence").Tuple([]interface{}{evidence.ID, evidence.TaskID, evidence.Kind, evidence.ObjectKey, "", evidence.CreatedAt.Unix()}).Context(ctx)).Get()
+	_, err := c.conn.Do(tnt.NewReplaceRequest("evidence").Tuple([]interface{}{evidence.ID, evidence.TaskID, evidence.Kind, evidence.ObjectKey, "", evidence.CreatedAt.Unix(), evidence.SubmissionID}).Context(ctx)).Get()
 	return err
 }
 
 func (c *Client) SaveReview(ctx context.Context, review domain.Review) error {
 	_, err := c.conn.Do(tnt.NewReplaceRequest("task_reviews").Tuple([]interface{}{newCode(), review.TaskID, review.ReviewerID, review.Decision, review.Comment, review.CreatedAt.Unix()}).Context(ctx)).Get()
+	return err
+}
+
+func (c *Client) SaveAnalysis(ctx context.Context, analysis domain.EvidenceAnalysis) error {
+	observations := nonNilStringSlice(analysis.Observations)
+	missingRequirements := nonNilStringSlice(analysis.MissingRequirements)
+	questions := nonNilStringSlice(analysis.Questions)
+	_, err := c.conn.Do(tnt.NewReplaceRequest("evidence_analyses").Tuple([]interface{}{
+		analysis.ID, analysis.TaskID, analysis.SubmissionID, string(analysis.Status), analysis.Relevant,
+		string(analysis.Quality), observations, missingRequirements, analysis.CommentSummary,
+		string(analysis.Recommendation), analysis.Confidence, questions, analysis.Model, analysis.Provider,
+		analysis.PromptVersion, analysis.InputHash, analysis.PromptTokens, analysis.CompletionTokens, analysis.TotalTokens,
+		analysis.CostRUB, analysis.ErrorCode, analysis.RequestedAt.Unix(), analysis.CompletedAt.Unix(),
+	}).Context(ctx)).Get()
 	return err
 }
 
@@ -210,7 +286,10 @@ func (c *Client) ClearTasks(ctx context.Context, organizationID string) error {
 	if err := c.deleteTaskRows(ctx, "evidence", taskIDs, 1); err != nil {
 		return err
 	}
-	return c.deleteTaskRows(ctx, "task_reviews", taskIDs, 1)
+	if err := c.deleteTaskRows(ctx, "task_reviews", taskIDs, 1); err != nil {
+		return err
+	}
+	return c.deleteTaskRows(ctx, "evidence_analyses", taskIDs, 1)
 }
 
 func (c *Client) deleteTaskRows(ctx context.Context, space string, taskIDs map[string]struct{}, taskField int) error {
@@ -258,4 +337,52 @@ func int64Value(value interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func float64Value(value interface{}) float64 {
+	switch result := value.(type) {
+	case float64:
+		return result
+	case float32:
+		return float64(result)
+	case int64:
+		return float64(result)
+	case uint64:
+		return float64(result)
+	case int:
+		return float64(result)
+	case uint:
+		return float64(result)
+	default:
+		return 0
+	}
+}
+
+func boolValue(value interface{}) bool {
+	result, _ := value.(bool)
+	return result
+}
+
+func stringSliceValue(value interface{}) []string {
+	switch values := value.(type) {
+	case []string:
+		return append([]string(nil), values...)
+	case []interface{}:
+		result := make([]string, 0, len(values))
+		for _, value := range values {
+			if stringItem, ok := value.(string); ok {
+				result = append(result, stringItem)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+func nonNilStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

@@ -17,6 +17,8 @@ type Service struct {
 	photos        PhotoStore
 	storage       Storage
 	notifications NotificationPublisher
+	inspections   InspectionPublisher
+	promptVersion string
 	logger        *slog.Logger
 	inviteCodeTTL time.Duration
 
@@ -27,6 +29,11 @@ type Service struct {
 
 func (s *Service) SetNotificationPublisher(publisher NotificationPublisher) {
 	s.notifications = publisher
+}
+
+func (s *Service) SetInspectionPublisher(publisher InspectionPublisher, promptVersion string) {
+	s.inspections = publisher
+	s.promptVersion = promptVersion
 }
 
 type renderTargetContextKey struct{}
