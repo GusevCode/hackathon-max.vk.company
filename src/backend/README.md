@@ -1,4 +1,4 @@
-# Backend architecture
+# Архитектура серверной части
 
 Backend написан на Go и использует чистую архитектуру с тремя слоями:
 
@@ -6,11 +6,11 @@ Backend написан на Go и использует чистую архите
 - `internal/usecase` — сценарии приложения и интерфейсы-порты;
 - `internal/infrastructure` — MAX SDK и HTTP-адаптеры.
 
-`cmd/control-bot` является composition root: читает конфигурацию, создаёт MAX
-клиент, health server, Tarantool/SeaweedFS и control use case. Use case не импортирует
-MAX SDK и тестируется через fake gateway.
+`cmd/control-bot` является корнем композиции: читает конфигурацию, создаёт MAX-
+клиент, health-сервер, Tarantool/SeaweedFS и сценарии управления. Сценарии не импортируют
+MAX SDK и тестируется через имитацию шлюза.
 
-Control use case разделён по ответственностям: `menus.go` и `callbacks.go`
+Сценарии управления разделены по ответственностям: `menus.go` и `callbacks.go`
 обрабатывают навигацию, `wizard.go` — пошаговые диалоги, `tasks.go` — жизненный
 цикл задания, `users.go` — пользователи и назначения, `reference.go` — объекты и
 виды работ, а `access/` содержит единую ACL-политику. Ни один пользовательский
@@ -28,5 +28,5 @@ Control use case разделён по ответственностям: `menus.
 
 Транспорт MAX — Webhook. Tarantool, SeaweedFS и NATS подключаются как отдельные
 сервисы Docker Compose; начальная схема Tarantool находится в
-`infra/tarantool/init.lua`. Backend является модульным монолитом: control-модуль
-публикует события заданий, а notifications-модуль доставляет их через NATS.
+`infra/tarantool/init.lua`. Серверная часть является модульным монолитом: модуль
+управления публикует события заданий, а модуль уведомлений доставляет их через NATS.

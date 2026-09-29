@@ -157,6 +157,17 @@ func (s *Store) Read(ctx context.Context, key string, maxBytes int64) ([]byte, s
 	return data, aws.ToString(response.ContentType), nil
 }
 
+func (s *Store) DeleteObject(ctx context.Context, key string) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("object key is empty")
+	}
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return fmt.Errorf("delete object %q: %w", key, err)
+	}
+	return nil
+}
+
 func (s *Store) DeleteAllTaskPhotos(ctx context.Context) error {
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),

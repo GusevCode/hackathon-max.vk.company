@@ -40,6 +40,8 @@ func (s *Service) handleCallback(ctx context.Context, event domain.Event) error 
 		return s.addUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
 	case len(parts) == 4 && parts[0] == "user" && parts[1] == "role_remove":
 		return s.removeUserRole(ctx, event, user, parts[2], domain.Role(parts[3]))
+	case len(parts) == 5 && parts[0] == "task" && (parts[1] == "delete_photo" || parts[1] == "delete_photo_confirm"):
+		return s.handleTaskPhotoCallback(ctx, event, user, parts[1], parts[2], parts[3], parts[4])
 	case len(parts) == 3 && parts[0] == "task":
 		return s.handleTaskCallback(ctx, event, user, parts[1], parts[2])
 	case len(parts) == 3 && parts[0] == "wizard":
@@ -166,9 +168,9 @@ func (s *Service) handleTaskCallback(ctx context.Context, event domain.Event, us
 		s.setSession(event.UserID, Session{Kind: SessionPhotoAfter, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "📸 Прикрепите фотографию ПОСЛЕ выполнения работы:", nil)
 	case "photos":
-		return s.sendTaskPhotos(ctx, event, task, task.AfterPhotos, "📸 Фотоотчёт")
+		return s.sendTaskPhotos(ctx, event, user, task, task.AfterPhotos, "after", "📸 Фотоотчёт")
 	case "before_photos":
-		return s.sendTaskPhotos(ctx, event, task, task.BeforePhotos, "📷 Фото до начала работы")
+		return s.sendTaskPhotos(ctx, event, user, task, task.BeforePhotos, "before", "📷 Фото до начала работы")
 	case "unable":
 		s.setSession(event.UserID, Session{Kind: SessionUnableReason, TaskID: task.ID})
 		return s.send(ctx, event.ChatID, "Напишите причину, по которой задание невозможно выполнить:", nil)

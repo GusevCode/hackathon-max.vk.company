@@ -27,8 +27,10 @@ func (s *Service) persistTask(ctx context.Context, task domain.Task) {
 
 func (s *Service) persistPhotos(ctx context.Context, taskID, kind, submissionID string, photos []domain.Photo) ([]domain.Evidence, error) {
 	evidenceItems := make([]domain.Evidence, 0, len(photos))
-	for index, photo := range photos {
+	for index := range photos {
 		key := fmt.Sprintf("tasks/%s/%s/%d-%d.jpg", taskID, kind, time.Now().UnixNano(), index)
+		photos[index].ObjectKey = key
+		photo := photos[index]
 		if err := s.photos.UploadURL(ctx, key, photo.URL, photo.Token); err != nil {
 			return nil, err
 		}

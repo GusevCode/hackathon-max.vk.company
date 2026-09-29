@@ -22,7 +22,7 @@ OBJECT_STORAGE_BUCKET=work-evidence
 MESSAGE_BROKER_URL=nats://nats:4222
 ```
 
-Запуск выполняется production-профилем:
+Запуск выполняется профилем рабочего окружения:
 
 ```bash
 docker compose --profile https up -d --build
@@ -102,5 +102,5 @@ docker compose logs --tail=100 bot tarantool seaweedfs caddy
 ```
 
 Webhook регистрируется автоматически как
-`https://max.conspiracy-team.ru/webhook`. На status page версия отображается в
+`https://max.conspiracy-team.ru/webhook`. На статусной странице версия отображается в
 блоке `DEPLOYED VERSION`.

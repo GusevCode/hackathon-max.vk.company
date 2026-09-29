@@ -19,7 +19,11 @@ type fakeBot struct {
 type fakePhotoStore struct{}
 
 func (fakePhotoStore) UploadURL(context.Context, string, string, string) error { return nil }
-func (fakePhotoStore) DeleteAllTaskPhotos(context.Context) error               { return nil }
+func (fakePhotoStore) Read(context.Context, string, int64) ([]byte, string, error) {
+	return []byte("fake-image"), "image/jpeg", nil
+}
+func (fakePhotoStore) DeleteObject(context.Context, string) error { return nil }
+func (fakePhotoStore) DeleteAllTaskPhotos(context.Context) error  { return nil }
 
 type fakeInspectionPublisher struct {
 	requests []domain.InspectionRequested
@@ -112,6 +116,33 @@ func TestInviteCodeRegistrationUsesMenu(t *testing.T) {
 	}
 }
 
+func TestBotStartedOpensRegistrationMenuWithoutMessage(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	service := NewService(bot, repo, nil, slog.Default())
+
+	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventStarted, ChatID: 42, UserID: 42, DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 1 || bot.sent[0].ChatID != 42 || bot.sent[0].Buttons[0].Payload != "auth:invite" {
+		t.Fatalf("start event did not open registration menu: %#v", bot.sent)
+	}
+}
+
+func TestBotStartedOpensMainMenuForRegisteredUser(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	repo.SaveUser(domain.User{ID: "user-42", OrganizationID: "system", MaxUserID: 42, DisplayName: "Иван Петров", Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive})
+	service := NewService(bot, repo, nil, slog.Default())
+
+	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventStarted, ChatID: 42, UserID: 42, DisplayName: "Иван Петров"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 1 || bot.sent[0].ChatID != 42 || len(bot.sent[0].Buttons) == 0 {
+		t.Fatalf("start event did not open main menu: %#v", bot.sent)
+	}
+}
+
 func TestCommandsDoNotMutateState(t *testing.T) {
 	service := NewService(&fakeBot{}, NewMemoryRepository(1), nil, slog.Default())
 	if err := service.handle(context.Background(), domain.Event{Kind: domain.EventMessage, ChatID: 1, UserID: 1, Text: "/invite employee"}); err != nil {
@@ -162,13 +193,13 @@ func TestSubmittingPhotosRequestsPolzaAnalysis(t *testing.T) {
 	employee := domain.User{ID: "employee", OrganizationID: "system", MaxUserID: 2, Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
 	repo.SaveUser(employee)
 	repo.SaveTask(domain.Task{
-		ID: "TASKAI", OrganizationID: "system", Title: "Уборка лифта", Description: "Помыть кабину",
+		ID: "TASKAI", OrganizationID: "system", Title: "Elevator cleaning", Description: "Clean floor and buttons",
 		AssigneeID: employee.ID, ManagerID: "initial-admin", Status: domain.TaskInProgress,
 	})
 	publisher := &fakeInspectionPublisher{}
 	service := NewService(bot, repo, fakePhotoStore{}, slog.Default())
 	service.SetInspectionPublisher(publisher, "v1")
-	err := service.submitPhotos(context.Background(), domain.Event{ChatID: 2, UserID: 2}, employee, mustTask(t, repo, "TASKAI"), []domain.Photo{{URL: "https://cdn.max.ru/after.jpg"}}, "Кабина очищена")
+	err := service.submitPhotos(context.Background(), domain.Event{ChatID: 2, UserID: 2}, employee, mustTask(t, repo, "TASKAI"), []domain.Photo{{URL: "https://cdn.max.ru/after.jpg"}}, "Cleaning completed")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,14 +220,14 @@ func TestManagerTaskCardShowsAnalysisAsRecommendation(t *testing.T) {
 	bot := &fakeBot{}
 	repo := NewMemoryRepository(1)
 	task := domain.Task{
-		ID: "TASKCARD", OrganizationID: "system", Title: "Уборка лифта",
+		ID: "TASKCARD", OrganizationID: "system", Title: "Elevator cleaning",
 		ManagerID: "initial-admin", Status: domain.TaskSubmitted, SubmissionID: "submission-1",
 	}
 	repo.SaveTask(task)
 	repo.SaveAnalysis(domain.EvidenceAnalysis{
 		ID: "analysis-1", TaskID: task.ID, SubmissionID: task.SubmissionID,
 		Status: domain.AnalysisSucceeded, Recommendation: domain.RecommendationApprove,
-		Confidence: 0.82, Observations: []string{"пол выглядит очищенным"},
+		Confidence: 0.82, Observations: []string{"floor appears clean"},
 	})
 	service := NewService(bot, repo, nil, slog.Default())
 	manager, _ := repo.UserByMaxID(1)
@@ -204,7 +235,7 @@ func TestManagerTaskCardShowsAnalysisAsRecommendation(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := bot.sent[len(bot.sent)-1].Text
-	if !strings.Contains(message, "РЕКОМЕНДАЦИЯ ИИ") || !strings.Contains(message, "Решение принимает руководитель") {
+	if !strings.Contains(message, "🤖 Предварительный ИИ-анализ") || !strings.Contains(message, "ИИ не принимает решение") {
 		t.Fatalf("analysis disclaimer is missing from card: %q", message)
 	}
 }
@@ -245,6 +276,39 @@ func TestManagerCanViewBeforePhotos(t *testing.T) {
 	}
 	if len(bot.sent) != 1 || len(bot.sent[0].Photos) != 1 {
 		t.Fatalf("before photos were not sent: %#v", bot.sent)
+	}
+}
+
+func TestManagerCanDeleteBeforePhoto(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	repo.SaveTask(domain.Task{
+		ID:             "TASKPHOTO",
+		OrganizationID: "system",
+		Title:          "Уборка лифта",
+		ManagerID:      "initial-admin",
+		Status:         domain.TaskInProgress,
+		BeforePhotos:   []domain.Photo{{URL: "https://cdn.max.ru/before.jpg"}},
+	})
+	service := NewService(bot, repo, nil, slog.Default())
+	ctx := context.Background()
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "photos-menu", Payload: "task:before_photos:TASKPHOTO"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bot.sent) != 1 || len(bot.sent[0].Buttons) < 2 {
+		t.Fatalf("photo menu does not contain delete action: %#v", bot.sent)
+	}
+
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "photos-menu", Payload: "task:delete_photo:TASKPHOTO:before:0"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.handle(ctx, domain.Event{Kind: domain.EventCallback, ChatID: 1, UserID: 1, MessageID: "photos-menu", Payload: "task:delete_photo_confirm:TASKPHOTO:before:0"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, ok := repo.Task("TASKPHOTO")
+	if !ok || len(updated.BeforePhotos) != 0 {
+		t.Fatalf("before photo was not deleted: %#v", updated.BeforePhotos)
 	}
 }
 

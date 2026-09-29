@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,10 @@ func TestAnalyzeSendsVisionRequestAndParsesStructuredResponse(t *testing.T) {
 			t.Fatalf("strict schema is not enabled: %#v", schema)
 		}
 		messages := body["messages"].([]any)
+		system := messages[0].(map[string]any)
+		if !strings.Contains(system["content"].(string), "только на русском") {
+			t.Fatalf("system prompt does not require Russian report text: %q", system["content"])
+		}
 		user := messages[1].(map[string]any)
 		parts := user["content"].([]any)
 		image := parts[2].(map[string]any)["image_url"].(map[string]any)
@@ -51,7 +56,7 @@ func TestAnalyzeSendsVisionRequestAndParsesStructuredResponse(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"model": "openai/gpt-4o", "provider": "test-provider",
-			"choices": []any{map[string]any{"message": map[string]any{"content": `{"relevant":true,"quality":"usable","observations":["чисто"],"missing_requirements":[],"comment_summary":"выполнено","recommendation":"approve","confidence":0.82,"questions":[]}`}}},
+			"choices": []any{map[string]any{"message": map[string]any{"content": `{"relevant":true,"quality":"usable","observations":["clean elevator floor"],"missing_requirements":[],"comment_summary":"work appears complete","recommendation":"approve","confidence":0.82,"questions":[]}`}}},
 			"usage":   map[string]any{"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150, "cost_rub": 1.25},
 		})
 	}))
@@ -62,7 +67,7 @@ func TestAnalyzeSendsVisionRequestAndParsesStructuredResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := client.Analyze(context.Background(), inspection.EvidenceInput{
-		Title: "Уборка", Images: []inspection.EvidenceImage{{Kind: "after", ContentType: "image/jpeg", Data: []byte("image")}},
+		Title: "Elevator cleaning", Images: []inspection.EvidenceImage{{Kind: "after", ContentType: "image/jpeg", Data: []byte("image")}},
 	})
 	if err != nil {
 		t.Fatal(err)

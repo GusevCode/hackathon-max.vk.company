@@ -227,6 +227,22 @@ func (c *Client) SaveEvidence(ctx context.Context, evidence domain.Evidence) err
 	return err
 }
 
+func (c *Client) DeleteEvidence(ctx context.Context, taskID, objectKey string) error {
+	var rows [][]interface{}
+	if err := c.conn.Do(tnt.NewSelectRequest("evidence").Index("task_id").Iterator(tnt.IterEq).Key([]interface{}{taskID}).Context(ctx)).GetTyped(&rows); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if len(row) < 4 || stringValue(row[3]) != objectKey {
+			continue
+		}
+		if _, err := c.conn.Do(tnt.NewDeleteRequest("evidence").Index("primary").Key([]interface{}{row[0]}).Context(ctx)).Get(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Client) SaveReview(ctx context.Context, review domain.Review) error {
 	_, err := c.conn.Do(tnt.NewReplaceRequest("task_reviews").Tuple([]interface{}{newCode(), review.TaskID, review.ReviewerID, review.Decision, review.Comment, review.CreatedAt.Unix()}).Context(ctx)).Get()
 	return err

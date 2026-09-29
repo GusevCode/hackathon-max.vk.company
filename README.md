@@ -1,4 +1,4 @@
-# MAX Hackathon Project
+# Проект хакатона MAX
 
 Проект хакатона «Умный город» для MAX.
 
@@ -6,33 +6,33 @@
 
 ```text
 src/
-  backend/                 Go backend and MAX ЖКХ Контроль bot
-    cmd/control-bot/       executable entrypoint
-    internal/domain/        business entities
-    internal/usecase/       application services and ports
-    internal/infrastructure/ MAX and HTTP adapters
+  backend/                 серверная часть на Go и бот «ЖКХ Контроль» для MAX
+    cmd/control-bot/       точка запуска приложения
+    internal/domain/       бизнес-сущности
+    internal/usecase/      прикладные сценарии и порты
+    internal/infrastructure/ адаптеры MAX и HTTP
     go.mod
-  frontend/                React + TypeScript + Vite status page (FSD)
-    src/app/               app composition and global styles
-    src/pages/             pages
-    src/widgets/           page blocks
-    src/features/          user actions
-    src/entities/          domain UI/models
-    src/shared/            reusable code
-    dist/                  generated Vite output (not committed)
+  frontend/                статусная страница на React + TypeScript + Vite (FSD)
+    src/app/               композиция приложения и глобальные стили
+    src/pages/             страницы
+    src/widgets/           блоки страниц
+    src/features/          действия пользователя
+    src/entities/          UI-модели предметной области
+    src/shared/            переиспользуемый код
+    dist/                  результат сборки Vite (не коммитится)
 infra/
   docker/backend.Dockerfile
   docker/frontend.Dockerfile
-  caddy/Caddyfile           HTTPS, static frontend and API proxy
+  caddy/Caddyfile           HTTPS, статический frontend и прокси API
 .github/workflows/
 compose.yaml
 .golangci.yml
 ```
 
-## Local development
+## Локальная разработка
 
-1. Copy `.env.example` to `.env` and put the MAX bot token in it.
-2. Run tests and lint locally:
+1. Скопируйте `.env.example` в `.env` и добавьте в него токен MAX-бота.
+2. Запустите локальные тесты и линтеры:
 
    ```bash
    cd src/backend
@@ -49,64 +49,69 @@ compose.yaml
    npm run build
    ```
 
-3. Run the bot directly:
+3. Запустите бота напрямую:
 
    ```bash
    go run ./cmd/control-bot
    ```
 
-4. Or run the bot through Docker:
+4. Либо запустите бота через Docker:
 
    ```bash
    docker compose up --build bot
    ```
 
-The bot uses Webhook transport. The `https` Compose profile publishes the React
-status page at `https://max.conspiracy-team.ru/`, proxies `/healthz`, `/webhook`
-and `/api/*` to Go, and runs Tarantool and SeaweedFS for application data and
-photo evidence.
+Бот использует транспорт Webhook. Профиль Compose `https` публикует React-
+статусную страницу по адресу `https://max.conspiracy-team.ru/`, проксирует
+`/healthz`, `/webhook` и `/api/*` в Go-сервис, а также запускает Tarantool и
+SeaweedFS для данных приложения и фотографий-доказательств.
 
-## CI/CD direction
+## Направление CI/CD
 
-- Every push and pull request checks Go and frontend formatting/types, tests,
-  linters, and builds the applications in GitHub Actions.
-- A separate manually triggered workflow builds the backend and frontend images,
-  publishes them to GHCR, and deploys them over SSH to the VPS.
-- The VPS runs pinned images through `docker compose`; the MAX token exists only
-  as a server-side secret in `.env`.
+- Каждый push и pull request проверяет форматирование и типы Go и frontend,
+  запускает тесты, линтеры и сборку приложений в GitHub Actions.
+- Отдельный workflow с ручным запуском собирает образы backend и frontend,
+  публикует их в GHCR и разворачивает на VPS по SSH.
+- VPS запускает зафиксированные образы через `docker compose`; токен MAX
+  хранится только как секрет на сервере в `.env`.
 
-See [`docs/MAX_DEVELOPMENT.md`](docs/MAX_DEVELOPMENT.md) for MAX API, Webhook, mini app, HTTPS and security notes.
+См. [`docs/MAX_DEVELOPMENT.md`](docs/MAX_DEVELOPMENT.md): API MAX, Webhook,
+mini app, HTTPS и безопасность.
 
-See [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) for the development, CI/CD, VPS and domain plan.
+См. [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md): разработка, CI/CD, VPS
+и план настройки домена.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the frontend FSD and
-backend clean architecture rules.
+См. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): FSD frontend и правила
+чистой архитектуры backend.
 
-See [`docs/DEPLOY_BOT.md`](docs/DEPLOY_BOT.md) for the complete first-deployment checklist.
+См. [`docs/DEPLOY_BOT.md`](docs/DEPLOY_BOT.md): полный чек-лист первого деплоя.
 
-See [`docs/MVP_TESTING.md`](docs/MVP_TESTING.md) for the role/task/photo workflow
-used to test stages 1–4.
+См. [`docs/MVP_TESTING.md`](docs/MVP_TESTING.md): workflow ролей, заданий и
+фотографий для проверки этапов 1–4.
 
-## GitHub Actions deployment setup
+## Настройка деплоя через GitHub Actions
 
-CI runs on every push and pull request. Deploy is a separate manual workflow:
-GitHub builds both Docker images, publishes them to GHCR and restarts the `bot`
-and `caddy` services on the VPS over SSH.
+CI запускается на каждом push и pull request. Деплой выполняется отдельным
+workflow вручную: GitHub собирает Docker-образы, публикует их в GHCR и
+перезапускает сервисы `bot` и `caddy` на VPS по SSH.
 
-Before the first deployment, create these GitHub repository/environment secrets:
+Перед первым деплоем создайте следующие секреты репозитория или окружения GitHub:
 
 - `VPS_HOST` — VPS hostname or IP;
-- `VPS_USER` — non-root SSH user with Docker permissions;
-- `VPS_APP_DIR` — absolute application directory on the VPS;
-- `VPS_SSH_PRIVATE_KEY` — private key used by the runner;
-- `VPS_KNOWN_HOSTS` — output of `ssh-keyscan -H <host>` collected independently;
-- `GHCR_USERNAME` and `GHCR_READ_TOKEN` — credentials for pulling the private GHCR image (omit if the package is public).
+- `VPS_USER` — непривилегированный SSH-пользователь с правами Docker;
+- `VPS_APP_DIR` — абсолютный путь к каталогу приложения на VPS;
+- `VPS_SSH_PRIVATE_KEY` — приватный ключ для GitHub runner;
+- `VPS_KNOWN_HOSTS` — независимо полученный вывод `ssh-keyscan -H <host>`;
+- `GHCR_USERNAME` и `GHCR_READ_TOKEN` — данные для скачивания приватного образа GHCR; для публичного пакета не нужны.
 
-On the VPS, create `${VPS_APP_DIR}/.env` manually once and keep the real `MAX_BOT_TOKEN` there. The deploy workflow never copies secrets to the machine; it only updates the compose file and image tag.
+На VPS один раз вручную создайте `${VPS_APP_DIR}/.env` и храните настоящий
+`MAX_BOT_TOKEN` там. Workflow деплоя не копирует секреты на машину, а только
+обновляет Compose-файл и тег образа.
 
-Optionally add the GitHub repository variable `MAX_BOT_URL` after the public bot
-username is known. Its value should be the complete URL, for example
-`https://max.ru/<username>`; the frontend shows the bot button only when this
-variable exists.
+После получения публичного имени бота можно добавить переменную репозитория
+GitHub `MAX_BOT_URL`. Значение должно быть полным URL, например
+`https://max.ru/<username>`; кнопка бота появится на frontend только при наличии
+этой переменной.
 
-To deploy, open **Actions → Deploy → Run workflow**, select a ref, and run it. The VPS does not need a shell session for ordinary updates.
+Для деплоя откройте **Actions → Deploy → Run workflow**, выберите ref и запустите
+workflow. Для обычных обновлений подключаться к VPS по SSH не требуется.

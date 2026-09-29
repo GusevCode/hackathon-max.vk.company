@@ -1,7 +1,7 @@
-# Frontend
+# Клиентская часть
 
-Статусная страница проекта на React + TypeScript + Vite с Feature-Sliced Design.
-В production она
+Статусная страница проекта на React + TypeScript + Vite с архитектурой
+Feature-Sliced Design. В рабочем окружении она
 собирается в Docker-образ на базе Caddy и публикуется по
 `https://max.conspiracy-team.ru/`.
 
@@ -22,7 +22,7 @@ npm run dev
 
 ## Ссылка на бота
 
-Если в GitHub Actions задать repository variable `MAX_BOT_URL` со ссылкой вида
+Если в GitHub Actions задать переменную репозитория `MAX_BOT_URL` со ссылкой вида
 `https://max.ru/<username>`, она будет встроена в сборку и появится кнопка
 «Открыть бота в MAX». Без этой переменной интерфейс не показывает непроверенную
 ссылку.

@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 		}
 	}
 	if task.Status == domain.TaskSubmitted && access.CanReviewTask(user, task) {
+		text += s.analysisText(task)
 		buttons = append(buttons,
 			domain.Button{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0},
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
@@ -99,21 +101,103 @@ func (s *Service) closeTask(ctx context.Context, chatID int64, user domain.User,
 	return s.sendHome(ctx, chatID, user, "🗄 Задание закрыто и убрано из активных списков.")
 }
 
-func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, task domain.Task, photos []domain.Photo, label string) error {
+func (s *Service) sendTaskPhotos(ctx context.Context, event domain.Event, user domain.User, task domain.Task, photos []domain.Photo, kind, label string) error {
 	if len(photos) == 0 {
 		return s.send(ctx, event.ChatID, "📷 Для этого задания пока нет фотографий.", nil)
 	}
+	buttons := make([]domain.Button, 0, len(photos)+1)
+	if access.CanDeleteTaskPhoto(user, task) {
+		for index := range photos {
+			buttons = append(buttons, domain.Button{
+				Text:    fmt.Sprintf("🗑 Удалить фото %d", index+1),
+				Payload: fmt.Sprintf("task:delete_photo:%s:%s:%d", task.ID, kind, index),
+				Row:     index,
+			})
+		}
+	}
+	buttons = append(buttons, domain.Button{Text: "↩️ К заданию", Payload: "task:view:" + task.ID, Row: len(buttons)})
 	_, err := s.bot.Send(ctx, domain.OutgoingMessage{
-		ChatID: event.ChatID,
-		Text:   label + ": " + task.Title,
-		Photos: photos,
-		Buttons: []domain.Button{{
-			Text:    "↩️ К заданию",
-			Payload: "task:view:" + task.ID,
-			Row:     0,
-		}},
+		ChatID:  event.ChatID,
+		Text:    label + ": " + task.Title,
+		Photos:  photos,
+		Buttons: buttons,
 	})
 	return err
+}
+
+func (s *Service) handleTaskPhotoCallback(ctx context.Context, event domain.Event, user domain.User, action, taskID, kind, rawIndex string) error {
+	if kind != "before" && kind != "after" {
+		return s.sendHome(ctx, event.ChatID, user, "Раздел фотографий не найден.")
+	}
+	task, ok := s.repo.Task(taskID)
+	if !ok || !access.CanViewTask(user, task) || !access.CanDeleteTaskPhoto(user, task) {
+		return s.sendHome(ctx, event.ChatID, user, "Недостаточно прав или задание недоступно.")
+	}
+	index, err := strconv.Atoi(rawIndex)
+	if err != nil {
+		return s.sendHome(ctx, event.ChatID, user, "Фотография не найдена.")
+	}
+	photos := taskPhotos(task, kind)
+	if index < 0 || index >= len(photos) {
+		return s.sendHome(ctx, event.ChatID, user, "Фотография не найдена.")
+	}
+	if action == "delete_photo" {
+		return s.send(ctx, event.ChatID, fmt.Sprintf("🗑 Удалить фото %d из раздела «%s»?", index+1, photoKindLabel(kind)), []domain.Button{
+			{Text: "✅ Удалить", Payload: fmt.Sprintf("task:delete_photo_confirm:%s:%s:%d", task.ID, kind, index), Row: 0},
+			{Text: "↩️ Отмена", Payload: fmt.Sprintf("task:%s:%s", photoListAction(kind), task.ID), Row: 1},
+		})
+	}
+
+	photo := photos[index]
+	if photo.ObjectKey != "" {
+		if s.photos != nil {
+			if err := s.photos.DeleteObject(ctx, photo.ObjectKey); err != nil {
+				s.logger.Warn("delete task photo", "error", err, "task_id", task.ID, "object_key", photo.ObjectKey)
+				return s.send(ctx, event.ChatID, "Не удалось удалить фотографию из хранилища. Попробуйте ещё раз.", []domain.Button{{
+					Text: "↩️ К фотографиям", Payload: fmt.Sprintf("task:%s:%s", photoListAction(kind), task.ID), Row: 0,
+				}})
+			}
+		}
+		if s.storage != nil {
+			if err := s.storage.DeleteEvidence(ctx, task.ID, photo.ObjectKey); err != nil {
+				s.logger.Warn("delete task photo evidence", "error", err, "task_id", task.ID, "object_key", photo.ObjectKey)
+			}
+		}
+	}
+
+	if kind == "before" {
+		task.BeforePhotos = append(task.BeforePhotos[:index], task.BeforePhotos[index+1:]...)
+	} else {
+		task.AfterPhotos = append(task.AfterPhotos[:index], task.AfterPhotos[index+1:]...)
+		if len(task.AfterPhotos) == 0 && (task.Status == domain.TaskSubmitted || task.Status == domain.TaskAccepted) {
+			task.Status = domain.TaskInProgress
+		}
+	}
+	task.UpdatedAt = time.Now()
+	s.repo.SaveTask(task)
+	s.persistTask(ctx, task)
+	return s.sendTaskPhotos(ctx, event, user, task, taskPhotos(task, kind), kind, photoKindLabel(kind))
+}
+
+func taskPhotos(task domain.Task, kind string) []domain.Photo {
+	if kind == "before" {
+		return task.BeforePhotos
+	}
+	return task.AfterPhotos
+}
+
+func photoKindLabel(kind string) string {
+	if kind == "before" {
+		return "📷 Фото до начала работы"
+	}
+	return "📸 Фотоотчёт"
+}
+
+func photoListAction(kind string) string {
+	if kind == "before" {
+		return "before_photos"
+	}
+	return "photos"
 }
 
 func (s *Service) taskEditMenu(ctx context.Context, event domain.Event, user domain.User, task domain.Task) error {
@@ -181,9 +265,8 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 	if strings.TrimSpace(comment) == "" {
 		return s.send(ctx, event.ChatID, "Комментарий обязателен — напишите, что именно сделано.", nil)
 	}
-	task.AfterPhotos = append(task.AfterPhotos, photos...)
-	var afterEvidence []domain.Evidence
 	submissionID := newCode()
+	var afterEvidence []domain.Evidence
 	if s.photos != nil {
 		var err error
 		afterEvidence, err = s.persistPhotos(ctx, task.ID, "after", submissionID, photos)
@@ -192,6 +275,7 @@ func (s *Service) submitPhotos(ctx context.Context, event domain.Event, user dom
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}
 	}
+	task.AfterPhotos = append(task.AfterPhotos, photos...)
 	task.SubmissionID = submissionID
 	task.Comment = strings.TrimSpace(comment)
 	task.Status = domain.TaskSubmitted
@@ -212,13 +296,13 @@ func (s *Service) attachBefore(ctx context.Context, event domain.Event, user dom
 	if len(photos) == 0 {
 		return s.send(ctx, event.ChatID, "Приложите фотографию до начала работы.", nil)
 	}
-	task.BeforePhotos = append(task.BeforePhotos, photos...)
 	if s.photos != nil {
 		if _, err := s.persistPhotos(ctx, task.ID, "before", "", photos); err != nil {
 			s.logger.Warn("upload before photos", "error", err, "task_id", task.ID, "photos", len(photos))
 			return s.send(ctx, event.ChatID, "Не удалось сохранить фото. Попробуйте ещё раз.", nil)
 		}
 	}
+	task.BeforePhotos = append(task.BeforePhotos, photos...)
 	task.Status = domain.TaskInProgress
 	task.UpdatedAt = time.Now()
 	s.repo.SaveTask(task)

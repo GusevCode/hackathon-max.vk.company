@@ -15,8 +15,9 @@ type Message struct {
 }
 
 type Photo struct {
-	URL   string
-	Token string
+	URL       string
+	Token     string
+	ObjectKey string
 }
 
 type Event struct {
@@ -36,6 +37,7 @@ type EventKind string
 const (
 	EventMessage  EventKind = "message"
 	EventCallback EventKind = "callback"
+	EventStarted  EventKind = "started"
 )
 
 type Button struct {

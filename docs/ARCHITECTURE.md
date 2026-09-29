@@ -1,6 +1,6 @@
 # Архитектура проекта
 
-## Frontend: Feature-Sliced Design
+## Клиентская часть: Feature-Sliced Design
 
 Frontend живёт в `src/frontend/src` и разделён по слоям FSD:
 
@@ -24,23 +24,23 @@ src/frontend/
 `dist` создаётся командой `npm run build` и используется только на этапе
 сборки Docker-образа frontend.
 
-## Backend: модульный монолит и чистая архитектура
+## Серверная часть: модульный монолит и чистая архитектура
 
 ```text
 src/backend/
-  cmd/control-bot/                       composition root
+  cmd/control-bot/                       корень композиции
   internal/
     domain/                             слой предметной области
-    usecase/control/                    меню, wizard-сценарии и workflow
+    usecase/control/                    меню, пошаговые сценарии и workflow
     usecase/access/                     централизованная ACL-политика
     usecase/notifications/              доставка уведомлений из событий
     usecase/inspection/                 асинхронный анализ фотоотчётов
-    infrastructure/maxbot/              адаптер MAX SDK
+    infrastructure/maxbot/              адаптер SDK MAX
     infrastructure/messaging/            адаптер брокера NATS
-    infrastructure/tarantool/           persistence Tarantool
-    infrastructure/objectstorage/       SeaweedFS/S3-compatible storage
+    infrastructure/tarantool/           хранение данных в Tarantool
+    infrastructure/objectstorage/       хранилище SeaweedFS/S3
     infrastructure/polza/               vision-адаптер Polza.ai
-    infrastructure/httpserver/          HTTP health delivery
+    infrastructure/httpserver/          HTTP endpoint состояния
 ```
 
 Правила зависимостей:
@@ -58,8 +58,8 @@ callbacks, приглашения, пользователи, задания, с�
 разнесены по отдельным файлам. Проверки полномочий не копируются в handlers, а
 используют пакет `usecase/access`.
 
-Такой порядок позволяет тестировать сценарии через fake gateway без сети и
-без токена MAX. Webhook, Tarantool, SeaweedFS и NATS подключаются в composition
+Такой порядок позволяет тестировать сценарии через имитацию шлюза без сети и
+без токена MAX. Webhook, Tarantool, SeaweedFS и NATS подключаются в корне композиции
 root и не переносят SDK-зависимости в use case.
 
 ### Модули и события
@@ -68,11 +68,11 @@ root и не переносят SDK-зависимости в use case.
 модули с портами между ними:
 
 ```text
-control -> NotificationPublisher -> NATS -> notifications -> BotGateway(MAX)
+управление -> публикация уведомлений -> NATS -> уведомления -> шлюз бота MAX
    |
    +-> Repository/PhotoStore/Storage
    |
-   +-> InspectionPublisher -> NATS JetStream -> inspection -> Polza.ai
+   +-> публикация анализа -> NATS JetStream -> проверка -> Polza.ai
 ```
 
 Модуль `control` публикует события `task.assigned`, `task.submitted` и

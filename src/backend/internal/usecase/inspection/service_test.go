@@ -46,7 +46,7 @@ func TestProcessStoresSuccessfulAnalysis(t *testing.T) {
 	requestedAt := time.Now()
 	shouldAck, err := service.process(context.Background(), domain.InspectionRequested{
 		ID: "inspection-1", TaskID: "task-1", SubmissionID: "submission-1",
-		Title: "Уборка лифта", Images: []domain.InspectionImage{{Kind: "after", ObjectKey: "tasks/task-1/after.jpg"}},
+		Title: "Elevator cleaning", Images: []domain.InspectionImage{{Kind: "after", ObjectKey: "tasks/task-1/after.jpg"}},
 		RequestedAt: requestedAt,
 	})
 	if err != nil {

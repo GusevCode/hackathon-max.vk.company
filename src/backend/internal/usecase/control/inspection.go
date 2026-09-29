@@ -59,7 +59,7 @@ func (s *Service) requestInspection(ctx context.Context, task domain.Task, after
 
 func (s *Service) reanalyzeTask(ctx context.Context, event domain.Event, user domain.User, task domain.Task) error {
 	if s.inspections == nil || task.Status != domain.TaskSubmitted || !access.CanReviewTask(user, task) {
-		return s.sendHome(ctx, event.ChatID, user, "Повторный анализ для этого задания недоступен.")
+		return s.sendHome(ctx, event.ChatID, user, "Повторный анализ доступен только для задания на проверке.")
 	}
 	after := make([]domain.Evidence, 0)
 	for _, evidence := range s.repo.Evidences(task.ID) {
@@ -68,7 +68,7 @@ func (s *Service) reanalyzeTask(ctx context.Context, event domain.Event, user do
 		}
 	}
 	if len(after) == 0 {
-		return s.sendHome(ctx, event.ChatID, user, "Не найдены фотографии текущего отчёта для анализа.")
+		return s.sendHome(ctx, event.ChatID, user, "Для повторного анализа не найдены фотографии после выполнения.")
 	}
 	s.requestInspection(ctx, task, after)
 	return s.taskCard(ctx, event, user, task)
@@ -80,16 +80,16 @@ func (s *Service) analysisText(task domain.Task) string {
 		return ""
 	}
 	if analysis.SubmissionID != task.SubmissionID {
-		return "\n\n🤖 ИИ-проверка: результат устарел после новой отправки фото."
+		return "\n\n🤖 ИИ-анализ: результат относится к другой отправке фотографий."
 	}
 	switch analysis.Status {
 	case domain.AnalysisPending:
-		return "\n\n🤖 ИИ-проверка: анализируется."
+		return "\n\n🤖 ИИ-анализ: выполняется."
 	case domain.AnalysisFailed:
-		return "\n\n🤖 ИИ-проверка: не удалось выполнить. Решение принимает руководитель."
+		return "\n\n🤖 ИИ-анализ: выполнить анализ не удалось. Проверьте фотографии вручную."
 	case domain.AnalysisSucceeded:
 		lines := []string{
-			"\n\n🤖 РЕКОМЕНДАЦИЯ ИИ",
+			"\n\n🤖 Предварительный ИИ-анализ",
 			"Рекомендация: " + recommendationName(analysis.Recommendation),
 			fmt.Sprintf("Уверенность: %.0f%%", analysis.Confidence*100),
 		}
@@ -100,16 +100,16 @@ func (s *Service) analysisText(task domain.Task) string {
 			lines = append(lines, label)
 			for index, value := range values {
 				if index == 5 {
-					lines = append(lines, "• …")
+					lines = append(lines, "… и другие наблюдения")
 					break
 				}
 				lines = append(lines, "• "+shortAnalysisText(value))
 			}
 		}
 		appendItems("Видимые признаки:", analysis.Observations)
-		appendItems("Не подтверждено:", analysis.MissingRequirements)
+		appendItems("Недостающие требования:", analysis.MissingRequirements)
 		appendItems("Проверьте вручную:", analysis.Questions)
-		lines = append(lines, "Рекомендация справочная. Решение принимает руководитель.")
+		lines = append(lines, "ИИ не принимает решение. Итог подтверждает руководитель.")
 		return strings.Join(lines, "\n")
 	default:
 		return ""
