@@ -238,6 +238,9 @@ func TestManagerTaskCardShowsAnalysisAsRecommendation(t *testing.T) {
 	if !strings.Contains(message, "🤖 Предварительный ИИ-анализ") || !strings.Contains(message, "ИИ не принимает решение") {
 		t.Fatalf("analysis disclaimer is missing from card: %q", message)
 	}
+	if count := strings.Count(message, "🤖 Предварительный ИИ-анализ"); count != 1 {
+		t.Fatalf("analysis section appears %d times, want exactly once: %q", count, message)
+	}
 }
 
 func mustTask(t *testing.T, repo *MemoryRepository, id string) domain.Task {
