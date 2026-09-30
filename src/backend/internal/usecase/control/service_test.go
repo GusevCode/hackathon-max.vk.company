@@ -216,6 +216,45 @@ func TestSubmittingPhotosRequestsPolzaAnalysis(t *testing.T) {
 	}
 }
 
+func TestSubmittingMultiplePhotosRequestsOnlyLatestPhotoForAnalysis(t *testing.T) {
+	bot := &fakeBot{}
+	repo := NewMemoryRepository(1)
+	employee := domain.User{ID: "employee", OrganizationID: "system", MaxUserID: 2, Roles: []domain.Role{domain.RoleEmployee}, Status: domain.UserActive}
+	repo.SaveUser(employee)
+	repo.SaveEvidence(domain.Evidence{ID: "before-old", TaskID: "TASKLATEST", Kind: "before", ObjectKey: "before-old.jpg", CreatedAt: time.Unix(100, 0)})
+	repo.SaveEvidence(domain.Evidence{ID: "before-latest", TaskID: "TASKLATEST", Kind: "before", ObjectKey: "before-latest.jpg", CreatedAt: time.Unix(200, 0)})
+	repo.SaveTask(domain.Task{
+		ID: "TASKLATEST", OrganizationID: "system", Title: "Уборка лифта", Description: "Помыть пол и кнопки",
+		AssigneeID: employee.ID, ManagerID: "initial-admin", Status: domain.TaskInProgress,
+	})
+	publisher := &fakeInspectionPublisher{}
+	service := NewService(bot, repo, fakePhotoStore{}, slog.Default())
+	service.SetInspectionPublisher(publisher, "v1")
+
+	err := service.submitPhotos(context.Background(), domain.Event{ChatID: 2, UserID: 2}, employee, mustTask(t, repo, "TASKLATEST"), []domain.Photo{
+		{URL: "https://cdn.max.ru/after-old.jpg"},
+		{URL: "https://cdn.max.ru/after-latest.jpg"},
+	}, "Работа выполнена")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.requests) != 1 {
+		t.Fatalf("inspection requests = %d, want 1", len(publisher.requests))
+	}
+	request := publisher.requests[0]
+	if len(request.Images) != 2 {
+		t.Fatalf("inspection images = %d, want latest before and latest after", len(request.Images))
+	}
+	if request.Images[0].Kind != "before" || request.Images[0].ObjectKey != "before-latest.jpg" {
+		t.Fatalf("unexpected before image: %#v", request.Images[0])
+	}
+	afterEvidence := repo.Evidences("TASKLATEST")
+	latestAfter := afterEvidence[len(afterEvidence)-1]
+	if request.Images[1].Kind != "after" || request.Images[1].ObjectKey != latestAfter.ObjectKey {
+		t.Fatalf("unexpected after image: %#v, latest evidence: %#v", request.Images[1], latestAfter)
+	}
+}
+
 func TestManagerTaskCardShowsAnalysisAsRecommendation(t *testing.T) {
 	bot := &fakeBot{}
 	repo := NewMemoryRepository(1)
