@@ -56,7 +56,6 @@ func (s *Service) taskCard(ctx context.Context, event domain.Event, user domain.
 		}
 	}
 	if task.Status == domain.TaskSubmitted && access.CanReviewTask(user, task) {
-		text += s.analysisText(task)
 		buttons = append(buttons,
 			domain.Button{Text: "✅ Принять", Payload: "task:accept:" + task.ID, Row: 0},
 			domain.Button{Text: "🔁 На переделку", Payload: "task:rework:" + task.ID, Row: 0},
