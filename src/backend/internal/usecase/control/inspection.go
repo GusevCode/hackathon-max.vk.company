@@ -24,12 +24,10 @@ func (s *Service) requestInspection(ctx context.Context, task domain.Task, after
 			break
 		}
 	}
-	for _, evidence := range s.repo.Evidences(task.ID) {
-		if evidence.Kind == "before" {
-			request.Images = append(request.Images, domain.InspectionImage{Kind: evidence.Kind, ObjectKey: evidence.ObjectKey})
-		}
+	if evidence, ok := latestEvidence(s.repo.Evidences(task.ID), "before"); ok {
+		request.Images = append(request.Images, domain.InspectionImage{Kind: evidence.Kind, ObjectKey: evidence.ObjectKey})
 	}
-	for _, evidence := range after {
+	if evidence, ok := latestEvidence(after, "after"); ok {
 		request.Images = append(request.Images, domain.InspectionImage{Kind: evidence.Kind, ObjectKey: evidence.ObjectKey})
 	}
 	pending := domain.EvidenceAnalysis{
@@ -55,6 +53,26 @@ func (s *Service) requestInspection(ctx context.Context, task domain.Task, after
 		}
 		s.logger.Warn("publish inspection request", "error", err, "inspection_id", request.ID, "task_id", task.ID)
 	}
+}
+
+// latestEvidence keeps the inspection request small and deterministic: when
+// several photos of the same kind are attached, only the most recently saved
+// one is sent to the AI analyzer. If timestamps are equal, the later item in
+// the repository result wins, which preserves upload order in the in-memory
+// repository and for photos from the same upload batch.
+func latestEvidence(evidences []domain.Evidence, kind string) (domain.Evidence, bool) {
+	var latest domain.Evidence
+	found := false
+	for _, evidence := range evidences {
+		if evidence.Kind != kind {
+			continue
+		}
+		if !found || !evidence.CreatedAt.Before(latest.CreatedAt) {
+			latest = evidence
+			found = true
+		}
+	}
+	return latest, found
 }
 
 func (s *Service) reanalyzeTask(ctx context.Context, event domain.Event, user domain.User, task domain.Task) error {
